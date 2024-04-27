@@ -3,6 +3,7 @@ import sys
 
 sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")
 
+import streamlit as st
 from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
@@ -20,15 +21,15 @@ from langchain_pinecone import PineconeVectorStore
 
 load_dotenv()
 
-PINECONE_INDEX_NAME = "narwhals-docs"
-
 
 def get_response(user_query):
     embeddings = OpenAIEmbeddings()
-    db = PineconeVectorStore(index_name=PINECONE_INDEX_NAME, embedding=embeddings)
+    db = PineconeVectorStore(
+        index_name=st.secrets["PINECONE_INDEX_NAME"], embedding=embeddings
+    )
     retriever = db.as_retriever()
 
-    llm = ChatOpenAI()
+    llm = ChatOpenAI(api_key=st.secrets["OPENAI_API_KEY"])
     prompt = ChatPromptTemplate.from_messages(
         [
             (
