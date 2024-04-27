@@ -3,7 +3,6 @@ import sys
 
 sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")
 
-from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
@@ -34,14 +33,22 @@ def get_response(user_query):
         [
             (
                 "system",
-                "You're a useful AI assistant. Here is some {context} "
-                "Answer the following questions considering the history chat and using context: "
-                """    
+                "You're a useful AI assistant that is knowledgeable about {context}. "
+                "Answer the following user questions in maximum six sentences "
+                "considering the context and the history chat: "
+            """
             Context: {context}
 
             History chat: {history}
 
-            User question: {input}""",
+            User question: {input}.
+
+            If the user asks you to something about the documentation use {context} to do it.
+
+            If the user refers to the previous chat messages use both {context} and {history} to answer he question.
+
+            Do not imagine anything and try to find the answer using {context}. If you think that {context} doesn't have the answer, say that you don't know.
+            """,
             ),
             MessagesPlaceholder(variable_name="history"),
             ("human", "{input}"),
