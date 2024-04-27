@@ -1,8 +1,3 @@
-__import__("pysqlite3")
-import sys
-
-sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")
-
 import os
 from langchain_community.document_loaders import TextLoader
 from langchain.text_splitter import (
@@ -16,9 +11,6 @@ import shutil
 import streamlit as st
 from git import Repo
 
-from dotenv import load_dotenv
-
-load_dotenv()
 
 natwhals_git_url = "https://github.com/MarcoGorelli/narwhals.git"
 narwhals_dir = "./narwhals_copy"

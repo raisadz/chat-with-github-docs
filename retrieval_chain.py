@@ -1,10 +1,4 @@
-__import__("pysqlite3")
-import sys
-
-sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")
-
 import streamlit as st
-from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_openai import OpenAIEmbeddings
@@ -18,8 +12,6 @@ from langchain_core.prompts import MessagesPlaceholder
 from langchain_openai.chat_models import ChatOpenAI
 from operator import itemgetter
 from langchain_pinecone import PineconeVectorStore
-
-load_dotenv()
 
 
 def get_response(user_query):
