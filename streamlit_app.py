@@ -1,36 +1,44 @@
+__import__("pysqlite3")
+import sys
+
+sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")
+
+
 import streamlit as st
-from retrieval_chain import create_chain
+from langchain_core.messages import AIMessage, HumanMessage
 
-# App title
-st.set_page_config(page_title="🤗💬 Chat with Narwhals docs")
+from retrieval_chain import get_response
 
-# Store LLM generated responses
-if "messages" not in st.session_state.keys():
-    st.session_state.messages = [
-        {"role": "assistant", "content": "🤗💬 Chat with Narwhals documentation"}
+# app config
+st.set_page_config(page_title="Chat with Narwhals docs", page_icon="🤖")
+st.title("Chat with Narwhals docs")
+
+
+# session state
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = [
+        AIMessage(content="Hello, I am an AI assistant. How can I help you?"),
     ]
 
-# Display chat messages
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.write(message["content"])
 
+# conversation
+for message in st.session_state.chat_history:
+    if isinstance(message, AIMessage):
+        with st.chat_message("AI"):
+            st.write(message.content)
+    elif isinstance(message, HumanMessage):
+        with st.chat_message("Human"):
+            st.write(message.content)
 
-chain = create_chain()
+# user input
+user_query = st.chat_input("Type your message here...")
+if user_query is not None and user_query != "":
+    st.session_state.chat_history.append(HumanMessage(content=user_query))
 
+    with st.chat_message("Human"):
+        st.markdown(user_query)
 
-# User-provided prompt
+    with st.chat_message("AI"):
+        response = st.write_stream(get_response(user_query))
 
-if prompt := st.chat_input():
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.write(prompt)
-
-# Generate a new response if last message is not from assistant
-if st.session_state.messages[-1]["role"] != "assistant":
-    with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
-            response = chain.invoke({"question": prompt})["answer"]
-            st.write(response)
-            message = {"role": "assistant", "content": response}
-            st.session_state.messages.append(message)
+    st.session_state.chat_history.append(AIMessage(content=response))
