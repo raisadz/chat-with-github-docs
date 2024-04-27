@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_openai import OpenAIEmbeddings
-from langchain_community.vectorstores import Chroma
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain.memory import (
     StreamlitChatMessageHistory,
@@ -17,15 +16,16 @@ from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.prompts import MessagesPlaceholder
 from langchain_openai.chat_models import ChatOpenAI
 from operator import itemgetter
-
+from langchain_pinecone import PineconeVectorStore
 
 load_dotenv()
+
+PINECONE_INDEX_NAME = "narwhals-docs"
 
 
 def get_response(user_query):
     embeddings = OpenAIEmbeddings()
-
-    db = Chroma(persist_directory="./narwhalsdb", embedding_function=embeddings)
+    db = PineconeVectorStore(index_name=PINECONE_INDEX_NAME, embedding=embeddings)
     retriever = db.as_retriever()
 
     llm = ChatOpenAI()
@@ -36,7 +36,7 @@ def get_response(user_query):
                 "You're a useful AI assistant that is knowledgeable about {context}. "
                 "Answer the following user questions in maximum six sentences "
                 "considering the context and the history chat: "
-            """
+                """
             Context: {context}
 
             History chat: {history}
