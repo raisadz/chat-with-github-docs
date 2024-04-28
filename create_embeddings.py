@@ -12,23 +12,26 @@ import streamlit as st
 from git import Repo
 
 
-natwhals_git_url = "https://github.com/MarcoGorelli/narwhals.git"
-narwhals_dir = "./narwhals_copy"
+git_url = st.secrets(["GIT_REPO"])
+# the name of the local diroctory for cloning the Git repo 
+# will be the same as the Pinecone index name
+dir_copy = os.path.join('.', st.secrets(["PINECONE_INDEX_NAME"]))
 
-dirpath = Path(narwhals_dir)
+dirpath = Path(dir_copy)
 if dirpath.exists() and dirpath.is_dir():
     shutil.rmtree(dirpath)
 
-Repo.clone_from(natwhals_git_url, narwhals_dir)
+Repo.clone_from(git_url, dir_copy)
 
-# scrape all files from directory
-
+folders = st.secrets['FOLDERS'].split(',')
 docs = []
 all_files = []
-for dirpath, dirnames, filenames in os.walk(narwhals_dir):
-    for file in filenames:
-        full_file_name = dirpath + "/" + file
-        if ("/." not in full_file_name) and ("venv" not in full_file_name):
+for folder in folders:
+    for dirpath, dirnames, filenames in os.walk(os.path.join(dir_copy, folder)):
+        for file in filenames:
+            if not (file.endswith('.py') or file.endswith('.md')):
+                continue
+            full_file_name = dirpath + "/" + file
             all_files += [full_file_name]
             try:
                 loader = TextLoader(os.path.join(dirpath, file), encoding="utf-8")
@@ -51,7 +54,9 @@ embeddings = OpenAIEmbeddings()
 
 pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
 
-pc.delete_index(st.secrets["PINECONE_INDEX_NAME"])
+pc_indexes = [x['name'] for x in pc.list_indexes()]
+if st.secrets["PINECONE_INDEX_NAME"] in pc_indexes:
+    pc.delete_index(st.secrets["PINECONE_INDEX_NAME"])
 pc.create_index(
     name=st.secrets["PINECONE_INDEX_NAME"],
     dimension=1536,

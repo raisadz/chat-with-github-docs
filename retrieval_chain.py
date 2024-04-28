@@ -38,9 +38,14 @@ def get_response(user_query):
 
             If the user asks you to something about the documentation use {context} to do it.
 
-            If the user refers to the previous chat messages use both {context} and {history} to answer he question.
+            If the user refers to the previous chat messages use both {context} 
+            and {history} to answer he question.
 
-            Do not imagine anything and try to find the answer using {context}. If you think that {context} doesn't have the answer, say that you don't know.
+            Do not imagine anything and try to find the answer using {context}. 
+            If you think that {context} doesn't have the answer, say that you don't know.
+
+            If the user asks you something not related to {context} 
+            politely remind the user that it is no related.
             """,
             ),
             MessagesPlaceholder(variable_name="history"),
