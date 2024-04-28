@@ -12,10 +12,10 @@ import streamlit as st
 from git import Repo
 
 
-git_url = st.secrets(["GIT_REPO"])
+git_url = st.secrets["GIT_REPO"]
 # the name of the local diroctory for cloning the Git repo 
 # will be the same as the Pinecone index name
-dir_copy = os.path.join('.', st.secrets(["PINECONE_INDEX_NAME"]))
+dir_copy = os.path.join('.', st.secrets["PINECONE_INDEX_NAME"])
 
 dirpath = Path(dir_copy)
 if dirpath.exists() and dirpath.is_dir():
