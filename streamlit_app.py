@@ -3,7 +3,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from retrieval_chain import get_response
 
-st.set_page_config(page_title=f"Chat with {st.secrets['DOCS_NAME']} docs", page_icon="🤖")
+st.set_page_config(page_title="Chat with GitHub docs", page_icon="🤖")
 st.title(f"Chat with {st.secrets['DOCS_NAME']} docs")
 
 
