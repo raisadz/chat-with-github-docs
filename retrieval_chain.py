@@ -21,31 +21,28 @@ def get_response(user_query):
     )
     retriever = db.as_retriever()
 
-    llm = ChatOpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+    llm = ChatOpenAI(
+        temperature=0, max_tokens=1000, api_key=st.secrets["OPENAI_API_KEY"]
+    )
     prompt = ChatPromptTemplate.from_messages(
         [
             (
                 "system",
-                "You're a useful AI assistant that is knowledgeable about {context}. "
+                "You're a useful AI assistant and you are knowledgeable about the context. "
+                "You can provide the descriptions of the available functions "
+                "and write code snippets using non-deprecated functions. "
                 "Answer the following user questions in maximum six sentences "
-                "considering the context and the history chat: "
+                "considering the context and the history chat. "
+                "Do not imagine anything and use only the context to get the correct answer. "
+                "If you think that the context doesn't have the answer, say that you don't know. "
+                "If the user asks you something not related to context "
+                "politely remind the user that it is not related. "
                 """
             Context: {context}
 
             History chat: {history}
 
             User question: {input}.
-
-            If the user asks you to something about the documentation use {context} to do it.
-
-            If the user refers to the previous chat messages use both {context} 
-            and {history} to answer he question.
-
-            Do not imagine anything and try to find the answer using {context}. 
-            If you think that {context} doesn't have the answer, say that you don't know.
-
-            If the user asks you something not related to {context} 
-            politely remind the user that it is no related.
             """,
             ),
             MessagesPlaceholder(variable_name="history"),
