@@ -51,7 +51,7 @@ def github_embeddings(
 
     TEXT_SPLITTER_CHUNK_PARAMS = {
         "chunk_size": 1000,
-        "chunk_overlap": 500,
+        "chunk_overlap": 200,
         "length_function": len,
     }
 
@@ -81,12 +81,23 @@ def github_embeddings(
 
 
 if __name__ == "__main__":
-    git_url = "https://github.com/kevinheavey/modern-polars.git"
-    dir_name = "modern-polars"
-    folders = "book"
-    pinecone_api_key = st.secrets["PINECONE_API_KEY"]
     index_name = "polars-docs"
-    flag_new = False
+    pinecone_api_key = st.secrets["PINECONE_API_KEY"]
+    # create embeddings from the Polars Git repo
     github_embeddings(
-        git_url, dir_name, folders, pinecone_api_key, index_name, flag_new
+        git_url="https://github.com/pola-rs/polars.git",
+        dir_name="polars-docs",
+        folders="docs,py-polars",
+        pinecone_api_key=pinecone_api_key,
+        index_name=index_name,
+        flag_new=True,
+    )
+    # add embeddings for the Modern Polars book
+    github_embeddings(
+        git_url="https://github.com/kevinheavey/modern-polars.git",
+        dir_name="modern-polars",
+        folders="book",
+        pinecone_api_key=pinecone_api_key,
+        index_name=index_name,
+        flag_new=False,
     )

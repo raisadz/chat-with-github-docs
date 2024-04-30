@@ -1,6 +1,5 @@
 import streamlit as st
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnablePassthrough
 from langchain_openai import OpenAIEmbeddings
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain.memory import (
@@ -10,8 +9,9 @@ from langchain_core.chat_history import BaseChatMessageHistory
 
 from langchain_core.prompts import MessagesPlaceholder
 from langchain_openai.chat_models import ChatOpenAI
-from operator import itemgetter
 from langchain_pinecone import PineconeVectorStore
+from langchain_core.output_parsers import StrOutputParser
+from langchain.schema.runnable import RunnableMap
 
 
 def get_response(user_query):
@@ -19,31 +19,32 @@ def get_response(user_query):
     db = PineconeVectorStore(
         index_name=st.secrets["PINECONE_INDEX_NAME"], embedding=embeddings
     )
-    retriever = db.as_retriever()
+    retriever = db.as_retriever(search_kwargs={"k": 50})
 
     llm = ChatOpenAI(
-        temperature=0, max_tokens=1000, api_key=st.secrets["OPENAI_API_KEY"]
+        model="gpt-3.5-turbo",
+        temperature=0,
+        max_tokens=1000,
+        api_key=st.secrets["OPENAI_API_KEY"],
     )
     prompt = ChatPromptTemplate.from_messages(
         [
             (
                 "system",
-                "You're a useful AI assistant and you are knowledgeable about the context. "
-                "You can provide the descriptions of the available functions "
-                "and write code snippets using non-deprecated functions. "
-                "Answer the following user questions in maximum six sentences "
-                "considering the context and the history chat. "
-                "Do not imagine anything and use only the context to get the correct answer. "
-                "If you think that the context doesn't have the answer, say that you don't know. "
-                "If the user asks you something not related to context "
-                "politely remind the user that it is not related. "
-                """
-            Context: {context}
-
-            History chat: {history}
-
-            User question: {input}.
-            """,
+                "You're a useful AI assistant.\n"
+                "Respond in short but complete answers unless specifically "
+                "asked by the User to elaborate on something.\n"
+                "Use both Context and History to inform your answers.\n"
+                "We have provided Context and History below. \n"
+                "---------------------\n"
+                "Context: {context} \n"
+                "---------------------\n"
+                "History: {history} \n"
+                "Give an answer only if you checked that it is correct in Context. \n"
+                "If you can't find an answer in Context, say that you don't know, don't imagine anything. \n"
+                "Given this information, provide an answer to the following \n:"
+                "---------------------\n"
+                "User question: {input}\n",
             ),
             MessagesPlaceholder(variable_name="history"),
             ("human", "{input}"),
@@ -53,15 +54,32 @@ def get_response(user_query):
     def get_session_history(session_id: str) -> BaseChatMessageHistory:
         return StreamlitChatMessageHistory()
 
-    context = itemgetter("input") | retriever
-    context_step = RunnablePassthrough.assign(context=context)
-    chain = context_step | prompt | llm
+    output_parser = StrOutputParser()
+    chain = (
+        RunnableMap(
+            {
+                "context": lambda x: "\n\n -----".join(
+                    [
+                        doc.page_content
+                        for doc in retriever.get_relevant_documents(x["input"])
+                    ]
+                ),
+                "input": lambda x: x["input"],
+                "history": lambda x: x["history"],
+            }
+        )
+        | prompt
+        | llm
+        | output_parser
+    )
+
     with_message_history = RunnableWithMessageHistory(
         chain,
         get_session_history,
         input_messages_key="input",
         history_messages_key="history",
     )
+
     return with_message_history.stream(
         {"input": user_query},
         config={"configurable": {"session_id": "abc123"}},
