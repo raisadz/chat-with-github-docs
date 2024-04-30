@@ -1,0 +1,2655 @@
+Question:
+What is the equivalent of drop_duplicates() from pandas in polars?
+import polars as pl
+df = pl.DataFrame({"a":[1,1,2], "b":[2,2,3], "c":[1,2,3]})
+df
+
+Output:
+shape: (3, 3)
+┌─────┬─────┬─────┐
+│ a   ┆ b   ┆ c   │
+│ --- ┆ --- ┆ --- │
+│ i64 ┆ i64 ┆ i64 │
+╞═════╪═════╪═════╡
+│ 1   ┆ 2   ┆ 1   │
+├╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌┤
+│ 1   ┆ 2   ┆ 2   │
+├╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌┤
+│ 2   ┆ 3   ┆ 3   │
+└─────┴─────┴─────┘
+
+Code:
+df.drop_duplicates(["a", "b"])
+
+Delivers the following error:
+AttributeError: drop_duplicates not found
+Answer:
+The right function name is .unique()
+import polars as pl
+df = pl.DataFrame({"a":[1,1,2], "b":[2,2,3], "c":[1,2,3]})
+df.unique(subset=["a","b"])
+
+And this delivers the right output:
+shape: (2, 3)
+┌─────┬─────┬─────┐
+│ a   ┆ b   ┆ c   │
+│ --- ┆ --- ┆ --- │
+│ i64 ┆ i64 ┆ i64 │
+╞═════╪═════╪═════╡
+│ 1   ┆ 2   ┆ 1   │
+├╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌┤
+│ 2   ┆ 3   ┆ 3   │
+└─────┴─────┴─────┘
+END
+
+
+Question:
+I cannot find how to reorder columns in a polars dataframe in the polars DataFrame docs.
+Answer:
+Turns out it is the same as pandas:
+df = df[['PRODUCT', 'PROGRAM', 'MFG_AREA', 'VERSION', 'RELEASE_DATE', 'FLOW_SUMMARY', 'TESTSUITE', 'MODULE', 'BASECLASS', 'SUBCLASS', 'Empty', 'Color', 'BINNING', 'BYPASS', 'Status', 'Legend']]
+END
+
+
+Question:
+I have scrubbed the polars docs and cannot see an example of creating a column with a fixed value from a variable.  Here is what works in pandas:
+df['VERSION'] = version
+
+Thx
+Answer:
+Use polars.lit
+import polars as pl
+
+version = 6
+df = df.with_columns(pl.lit(version).alias('VERSION'))
+END
+
+
+Question:
+Consider a Polars data frame with a column of str type that indicates the date in the format '27 July 2020'. I would like to convert this column to the polars.datetime type, which is distinct from the Python standard datetime. The following code, using the standard datetime format, works but Polars does not recognise the values in the column as dates.
+import polars as pl
+from datetime import datetime
+
+df = pd.read_csv('<some CSV file containing a column called 'event_date'>')
+df = df.with_columns([   
+        pl.col('event_date').apply(lambda x: x.replace(" ","-"))\
+                            .apply(lambda x: datetime.strptime(x, '%d-%B-%Y'))
+])
+
+
+Suppose we try to process df further to create a new column indicating the quarter of the year an event took place.
+df = df.with_columns([
+        pl.col('event_date').apply(lambda x: x.month)\
+                            .apply(lambda x: 1 if x in range(1,4) else 2 if x in range(4,7) else 3 if x in range(7,10) else 4)\
+                            .alias('quarter')
+])
+
+The code returns the following error because it qualifies event_type as dtype Object("object") and not as datetime or polars.datetime
+thread '<unnamed>' panicked at 'dtype Object("object") not supported', src/series.rs:992:24
+--- PyO3 is resuming a panic after fetching a PanicException from Python. ---
+PanicException: Unwrapped panic from Python code
+Answer:
+Update: .str.to_datetime() can be used as of polars v0.17.10
+df = pl.from_repr("""
+┌─────┬──────────────────┐
+│ id  ┆ event_date       │
+│ --- ┆ ---              │
+│ i64 ┆ str              │
+╞═════╪══════════════════╡
+│ 1   ┆ 27 July 2020     │
+│ 2   ┆ 31 December 2020 │
+└─────┴──────────────────┘
+""")
+
+df.with_columns(
+   pl.col("event_date").str.to_datetime("%d %B %Y")
+)
+
+shape: (2, 2)
+┌─────┬─────────────────────┐
+│ id  ┆ event_date          │
+│ --- ┆ ---                 │
+│ i64 ┆ datetime[μs]        │
+╞═════╪═════════════════════╡
+│ 1   ┆ 2020-07-27 00:00:00 │
+│ 2   ┆ 2020-12-31 00:00:00 │
+└─────┴─────────────────────┘
+
+
+The easiest way to convert strings to Date/Datetime is to use Polars' own strptime function (rather than the same-named function from Python's datetime module).
+For example, let's start with this data.
+import polars as pl
+
+df = pl.DataFrame({
+    'date_str': ["27 July 2020", "31 December 2020"]
+})
+print(df)
+
+shape: (2, 1)
+┌──────────────────┐
+│ date_str         │
+│ ---              │
+│ str              │
+╞══════════════════╡
+│ 27 July 2020     │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 31 December 2020 │
+└──────────────────┘
+
+To convert, use Polars' strptime function.
+df.with_columns(pl.col('date_str').str.strptime(pl.Date, fmt='%d %B %Y').cast(pl.Datetime))
+
+shape: (2, 1)
+┌─────────────────────┐
+│ date_str            │
+│ ---                 │
+│ datetime[μs]        │
+╞═════════════════════╡
+│ 2020-07-27 00:00:00 │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 2020-12-31 00:00:00 │
+└─────────────────────┘
+
+Notice that we did not need to replace spaces with dashes.  I've cast the result as a Datetime (per your question), but you may be able to use a Date instead.
+Currently, the apply method does not work when the return type is a python Date/Datetime object, but there is a request for this.  That said, it's better to use Polars' strptime.  It will be much faster than calling python datetime code.
+Edit: as of Polars 0.13.19, the apply method will automatically convert Python date/datetime to Polars Date/Datetime.
+END
+
+
+Question:
+I am currently creating a new column in a polars data frame using
+predictions = [10, 20, 30, 40, 50]
+df['predictions'] = predictions
+
+where predictions is a numpy array or list containing values I computed with another tool.
+However, polars throws a warning, that this option will be deprecated.
+How can the same result be achieved using .with_columns()?
+Answer:
+The values in the numpy array or list predictions can be add to a polars table using:
+predictions = [10, 20, 30, 40, 50]
+df.with_columns(pl.Series(name="predictions", values=predictions))
+END
+
+
+Question:
+How can I achieve the equivalents of SQL's IN and NOT IN?
+I have a list with the required values. Here's the scenario:
+import pandas as pd
+import polars as pl
+exclude_fruit = ["apple", "orange"]
+
+df = pl.DataFrame(
+    {
+        "A": [1, 2, 3, 4, 5, 6],
+        "fruits": ["banana", "banana", "apple", "apple", "banana", "orange"],
+        "B": [5, 4, 3, 2, 1, 6],
+        "cars": ["beetle", "audi", "beetle", "beetle", "beetle", "frog"],
+        "optional": [28, 300, None, 2, -30, 949],
+    }
+)
+df.filter(~pl.select("fruits").str.contains(exclude_fruit))
+df.filter(~pl.select("fruits").to_pandas().isin(exclude_fruit))
+df.filter(~pl.select("fruits").isin(exclude_fruit))
+Answer:
+You were close.
+df.filter(~pl.col('fruits').is_in(exclude_fruit))
+
+shape: (3, 5)
+┌─────┬────────┬─────┬────────┬──────────┐
+│ A   ┆ fruits ┆ B   ┆ cars   ┆ optional │
+│ --- ┆ ---    ┆ --- ┆ ---    ┆ ---      │
+│ i64 ┆ str    ┆ i64 ┆ str    ┆ i64      │
+╞═════╪════════╪═════╪════════╪══════════╡
+│ 1   ┆ banana ┆ 5   ┆ beetle ┆ 28       │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┤
+│ 2   ┆ banana ┆ 4   ┆ audi   ┆ 300      │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┤
+│ 5   ┆ banana ┆ 1   ┆ beetle ┆ -30      │
+└─────┴────────┴─────┴────────┴──────────┘
+END
+
+
+Question:
+Suppose my data looks like this:
+data = {
+    'value': [1,9,6,7,3, 2,4,5,1,9]
+}
+
+For each row, I would like to find the row number of the latest previous element larger than the current one.
+So, my expected output is:
+[None, 0, 1, 2, 1, 1, 3, 4, 1, 0]
+
+
+the first element 1 has no previous element, so I want None in the result
+the next element 9 is at least as large than all its previous elements, so I want 0 in the result
+the next element 6, has its previous element 9 which is larger than it. The distance between them is 1. So, I want 1 in the result here.
+
+I'm aware that I can do this in a loop in Python (or in C / Rust if I write an extension).
+My question: is it possible to solve this using entirely dataframe operations? pandas or Polars, either is fine. But only dataframe operations.
+So, none of the following please:
+
+apply
+map_elements
+map_rows
+iter_rows
+Python for loops which loop over the rows and extract elements one-by-one from the dataframes
+Answer:
+This iterates only on the range of rows that this should look. It doesn't loop over the rows themselves in python. If your initial bound_range covers all the cases then it won't ever actually do a loop.
+lb=0
+bound_range=3
+df=df.with_columns(z=pl.lit(None, dtype=pl.UInt64))
+while True:
+    df=df.with_columns(
+        z=pl.when(pl.col('value')>=pl.col('value').shift(1).cum_max())
+            .then(pl.lit(0, dtype=pl.UInt64))
+            .when(pl.col('z').is_null())
+            .then(
+                pl.coalesce(
+                    pl.when(pl.col('value')<pl.col('value').shift(x))
+                        .then(pl.lit(x, dtype=pl.UInt64))
+                        for x in range(lb, lb+bound_range)
+                )
+            )
+            .otherwise(pl.col('z'))
+            )
+    if df[1:]['z'].drop_nulls().shape[0]==df.shape[0]-1:
+        break
+    lb+=bound_range
+
+
+For this example I set bound_range to 3 to make sure it loops at least once. I ran this with 1M random integers between 0 and 9(inclusive) and I set the bound_range to 50 and it took under 2 sec. You could make this smarter in between loops by checking things more explicitly but the best approach there would be data dependent.
+END
+
+
+Question:
+I am breaking my head trying to figure out how to use group_by and apply in Python's library polars.
+Coming from Pandas, I was using:
+def get_score(df):
+   return spearmanr(df["prediction"], df["target"]).correlation
+
+correlations = df.group_by("era").apply(get_score)
+
+But in polars, this doesn't work.
+I tried several approaches, mainly around:
+correlations = df.group_by("era").apply(get_score)
+
+But this fails with the error message:
+
+'Could net get DataFrame attribute '_df'. Make sure that you return a DataFrame object.: PyErr { type: <class 'AttributeError'>, value: AttributeError("'numpy.float64' object has no attribute '_df'"),
+
+Any ideas?
+Answer:
+As of polars>=0.10.4 you can use the pl.spearman_rank_corr function.
+If you want to use a custom function you could do it like this:
+Custom function on multiple columns/expressions
+import polars as pl
+from typing import List
+from scipy import stats
+
+df = pl.DataFrame({
+    "g": [1, 1, 1, 2, 2, 2, 5],
+    "a": [2, 4, 5, 190, 1, 4, 1],
+    "b": [1, 3, 2, 1, 43, 3, 1]
+})
+
+def get_score(args: List[pl.Series]) -> pl.Series:
+    return pl.Series([stats.spearmanr(args[0], args[1]).correlation], dtype=pl.Float64)
+
+(df.group_by("g", maintain_order=True)
+ .agg(
+    pl.apply(
+        exprs=["a", "b"], 
+        function=get_score).alias("corr")
+ ))
+
+Polars provided function
+(df.group_by("g", maintain_order=True)
+ .agg(
+     pl.spearman_rank_corr("a", "b").alias("corr")
+ ))
+
+Both output:
+shape: (3, 2)
+┌─────┬──────┐
+│ g   ┆ corr │
+│ --- ┆ ---  │
+│ i64 ┆ f64  │
+╞═════╪══════╡
+│ 1   ┆ 0.5  │
+├╌╌╌╌╌┼╌╌╌╌╌╌┤
+│ 2   ┆ -1e0 │
+├╌╌╌╌╌┼╌╌╌╌╌╌┤
+│ 5   ┆ NaN  │
+└─────┴──────┘
+
+Custom function on a a single column/expression
+We can also apply custom functions on single expressions, via .apply or .map.
+Below is an example of how we can square a column with a custom function and with normal polars expressions. The expression syntax
+should always be preferred, as its a lot faster.
+(df.group_by("g")
+ .agg(
+     pl.col("a").apply(lambda group: group**2).alias("squared1"),
+     (pl.col("a")**2).alias("squared2")
+ ))
+
+what's the difference between apply and map?
+map works on whole column series. apply works on single values, or single groups, dependent on the context.
+select context:
+
+map
+
+input/output type: Series
+semantic meaning of input: a column value
+
+
+apply
+
+input/output type: Union[int, float, str, bool]
+semantic meaning of input: single values in a column
+
+
+
+group_by context:
+
+map
+
+input/output type: Series
+semantic meaning of input: A list column where the values are the groups
+
+
+apply
+
+input/output type: Series
+semantic meaning of input: The groups
+END
+
+
+Question:
+In Polars, how can one specify a single dtype for all columns in read_csv?
+According to the docs, the dtypes argument to read_csv can take either a mapping (dict) in the form of {'column_name': dtype}, or a list of dtypes, one for each column.
+However, it is not clear how to specify "I want all columns to be a single dtype".
+If you wanted all columns to be Utf-8 for example and you knew the total number of columns, you could do:
+pl.read_csv('sample.csv', dtypes=[pl.Utf8]*number_of_columns)
+
+However, this doesn't work if you don't know the total number of columns.
+In Pandas, you could do something like:
+pd.read_csv('sample.csv', dtype=str)
+
+But this doesn't work in Polars.
+Answer:
+Reading all data in a csv to any other type than pl.Utf8 likely fails with a lot of null values. We can use expressions to declare how we want to deal with those null values.
+If you read a csv with infer_schema_length=0, polars does not know the schema and will read all columns as pl.Utf8 as that is a super type of all polars types.
+When read as Utf8 we can use expressions to cast all columns.
+(pl.read_csv("test.csv", infer_schema_length=0)
+   .with_columns(pl.all().cast(pl.Int32, strict=False))
+END
+
+
+Question:
+I am trying to loop through a Polars recordset using the following code:
+
+import polars as pl
+
+mydf = pl.DataFrame(
+    {"start_date": ["2020-01-02", "2020-01-03", "2020-01-04"],
+     "Name": ["John", "Joe", "James"]})
+
+print(mydf)
+
+│start_date  ┆ Name  │
+│ ---        ┆ ---   │
+│ str        ┆ str   │
+╞════════════╪═══════╡
+│ 2020-01-02 ┆ John  │
+│ 2020-01-03 ┆ Joe   │
+│ 2020-01-04 ┆ James │
+
+for row in mydf.rows():
+    print(row)
+
+('2020-01-02', 'John')
+('2020-01-03', 'Joe')
+('2020-01-04', 'James')
+
+
+Is there a way to specifically reference 'Name' using the named column as opposed to the index? In Pandas this would look something like:
+import pandas as pd
+
+mydf = pd.DataFrame(
+    {"start_date": ["2020-01-02", "2020-01-03", "2020-01-04"],
+     "Name": ["John", "Joe", "James"]})
+
+for index, row in mydf.iterrows():
+    mydf['Name'][index]
+
+'John'
+'Joe'
+'James'
+Answer:
+You can specify that you want the rows to be named
+for row in mydf.rows(named=True):
+    print(row)
+
+It will give you a dict:
+{'start_date': '2020-01-02', 'Name': 'John'}
+{'start_date': '2020-01-03', 'Name': 'Joe'}
+{'start_date': '2020-01-04', 'Name': 'James'}
+
+You can then call row['Name']
+Note that:
+
+previous versions returned namedtuple instead of dict.
+it's less memory intensive to use iter_rows
+overall it's not recommended to iterate through the data this way
+
+
+Row iteration is not optimal as the underlying data is stored in columnar form; where possible, prefer export via one of the dedicated export/output methods.
+END
+
+
+Question:
+I see it's possible to append using the series namespace (https://stackoverflow.com/a/70599059/5363883). What I'm wondering is if there is a similar method for appending or concatenating DataFrames.
+In pandas historically it could be done with df1.append(df2). However that method is being deprecated (if it hasn't already been deprecated) for pd.concat([df1, df2]).
+df1
+
+
+
+
+a
+b
+c
+
+
+
+
+1
+2
+3
+
+
+
+
+df2
+
+
+
+
+a
+b
+c
+
+
+
+
+4
+5
+6
+
+
+
+
+res
+
+
+
+
+a
+b
+c
+
+
+
+
+1
+2
+3
+
+
+4
+5
+6
+Answer:
+There are different append strategies depending on your needs.
+df1 = pl.DataFrame({"a": [1], "b": [2], "c": [3]})
+df2 = pl.DataFrame({"a": [4], "b": [5], "c": [6]})
+
+
+# new memory slab
+new_df = pl.concat([df1, df2], rechunk=True)
+
+# append free (no memory copy)
+new_df = df1.vstack(df2)
+
+# try to append in place
+df1.extend(df2)
+
+To understand the differences, it is important to understand polars memory is immutable iff it has any copy.
+Copies in polars are free, because it only increments a reference count of the backing memory buffer instead of copying the data itself.
+However, if a memory buffer has no copies yet, e.g. the refcount == 1, we can mutate polars memory.
+Knowing this background there are the following ways to append data:
+
+concat -> concatenate all given DataFrames. This is sort of a linked list of DataFrames. If you pass rechunk=True, all memory will be reallocated to contiguous chunks.
+vstack -> Adds the data from other to DataFrame by incrementing a refcount. This is super cheap. It is recommended to call rechunk after many vstacks. Or simply use pl.concat.
+extend This operation copies data. It tries to copy data from other to DataFrame. If however the refcount of DataFrame is larger than 1. A new buffer of memory is allocated to hold both  DataFrames.
+END
+
+
+Question:
+Is there an elegant way how to recode values in polars dataframe.
+For example
+1->0, 
+2->0, 
+3->1... 
+
+in Pandas it is simple like that:
+df.replace([1,2,3,4,97,98,99],[0,0,1,1,2,2,2])
+Answer:
+Edit 2022-02-12
+As of polars >=0.16.4 there is a map_dict expression.
+df = pl.DataFrame({
+    "a": [1, 2, 3, 4, 5]
+})
+
+mapper = {
+    1: 0,
+    2: 0,
+    3: 10,
+    4: 10
+}
+
+df.select(
+    pl.all().map_dict(mapper, default=pl.col("a"))
+)
+
+shape: (5, 1)
+┌─────┐
+│ a   │
+│ --- │
+│ i64 │
+╞═════╡
+│ 0   │
+│ 0   │
+│ 10  │
+│ 10  │
+│ 5   │
+└─────┘
+
+Before Edit
+In polars you can build columnar if else statetements called if -> then -> otherwise expressions.
+So let's say we have this DataFrame.
+df = pl.DataFrame({
+    "a": [1, 2, 3, 4, 5]
+})
+
+And we'd like to replace these with the following values:
+from_ = [1, 2]
+to_ = [99, 12]
+
+We could write:
+df.with_column(
+    pl.when(pl.col("a") == from_[0])
+    .then(to_[0])
+    .when(pl.col("a") == from_[1])
+    .then(to_[1])
+    .otherwise(pl.col("a")).alias("a")
+)
+
+shape: (5, 1)
+┌─────┐
+│ a   │
+│ --- │
+│ i64 │
+╞═════╡
+│ 99  │
+├╌╌╌╌╌┤
+│ 12  │
+├╌╌╌╌╌┤
+│ 3   │
+├╌╌╌╌╌┤
+│ 4   │
+├╌╌╌╌╌┤
+│ 5   │
+└─────┘
+
+
+Don't repeat yourself
+Now, this becomes very tedious to write really fast, so we could write a function that generates these expressions for use, we are programmers aren't we!
+So to replace with the values you have suggested, you could do:
+from_ = [1,2,3,4,97,98,99]
+to_ = [0,0,1,1,2,2,2]
+
+
+def replace(column, from_, to_):
+    # initiate the expression with `pl.when`
+    branch =  pl.when(pl.col(column) == from_[0]).then(to_[0])
+
+    
+    # for every value add a `when.then`
+    for (from_value, to_value) in zip(from_, to_):
+        branch = branch.when(pl.col(column) == from_value).then(to_value)
+
+    # finish with an `otherwise`
+    return branch.otherwise(pl.col(column)).alias(column)
+    
+
+
+df.with_column(replace("a", from_, to_))
+
+Which outputs:
+shape: (5, 1)
+┌─────┐
+│ a   │
+│ --- │
+│ i64 │
+╞═════╡
+│ 0   │
+├╌╌╌╌╌┤
+│ 0   │
+├╌╌╌╌╌┤
+│ 1   │
+├╌╌╌╌╌┤
+│ 1   │
+├╌╌╌╌╌┤
+│ 5   │
+└─────┘
+END
+
+
+Question:
+If I have a Polars literal, how can I extract the value?
+import polars as pl
+
+expr = pl.lit(0.5)
+
+val = float(expr)
+# TypeError: float() argument must be a string or a real number, not 'Expr'
+Answer:
+Like so:
+val = pl.select(expr).item()
+
+Explanation: a polars literal is an Expr object. An Expr object can be evaluated using pl.select(). That returns a DataFrame. To get the scalar value from the DataFrame, you can use  DataFrame.item().
+Note: .item() was added in release 0.15.9 of polars. If you are using a version prior to this, you can use pl.select(expr)[0, 0] as an alternative.
+END
+
+
+Question:
+I would like to replace Pandas with Polars but I was not able to find out how to use Polars with Plotly without converting to Pandas. I wonder if there is a way to completely cut Pandas out of the process.
+Consider the following test data:
+import polars as pl
+import numpy as np
+import plotly.express as px
+
+df = pl.DataFrame(
+    {
+        "nrs": [1, 2, 3, None, 5],
+        "names": ["foo", "ham", "spam", "egg", None],
+        "random": np.random.rand(5),
+        "groups": ["A", "A", "B", "C", "B"],
+    }
+)
+
+fig = px.bar(df, x='names', y='random')
+fig.show()
+
+I would like this code to show the bar chart in a Jupyter notebook but instead it returns an error:
+/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/site-packages/polars/internals/frame.py:1483: UserWarning: accessing series as Attribute of a DataFrame is deprecated
+  warnings.warn("accessing series as Attribute of a DataFrame is deprecated")
+
+It is possible to transform the Polars data frame to a Pandas data frame with df = df.to_pandas(). Then, it works. However, is there another, simpler and more elegant solution?
+Answer:
+Yes, no need for converting to a Pandas dataframe. Someone (sa-) has requested supporting a better option here and included a workaround for it.
+
+"The workaround that I use right now is px.line(x=df["a"], y=df["b"]), but it gets unwieldy if the name of the data frame is too big"
+
+For the OP's code example, the approach of specifying the dataframe columns explicitly works.
+I find in addition to specifying the dataframe columns with px.bar(x=df["names"], y=df["random"]) - or - px.bar(df, x=df["names"], y=df["random"]), casting to a list can also work:
+import polars as pl
+import numpy as np
+import plotly.express as px
+
+df = pl.DataFrame(
+    {
+        "nrs": [1, 2, 3, None, 5],
+        "names": ["foo", "ham", "spam", "egg", None],
+        "random": np.random.rand(5),
+        "groups": ["A", "A", "B", "C", "B"],
+    }
+)
+
+px.bar(df, x=list(df["names"]), y=list(df["random"]))
+
+Knowing polars better, you may see some other options once you see the idea of the workaround.
+The example posted there is simpler, instead of px.line(df, x="a", y="b") like you could use for a Pandas dataframe, you use px.line(x=df["a"], y=df["b"]). With polars, that is:
+import polars as pl
+import plotly.express as px
+
+df = pl.DataFrame({"a":[1,2,3,4,5], "b":[1,4,9,16,25]})
+
+px.line(x=df["a"], y=df["b"])
+
+(Note that using plotly.express requires Pandas to be installed, see here and here. I used plotly.express in my answer because it was closer to the OP. The code could be adapted to using plotly.graph_objects if there was a desire to not have Pandas installed & involved at all.)
+END
+
+
+Question:
+I'm looking for a function along the lines of
+df.group_by('column').agg(sample(10))
+
+so that I can take ten or so randomly-selected elements from each group.
+This is specifically so I can read in a LazyFrame and work with a small sample of each group as opposed to the entire dataframe.
+Update:
+One approximate solution is:
+df = lf.group_by('column').agg(
+        pl.all().sample(.001)
+    )
+df = df.explode(df.columns[1:])
+
+Update 2
+That approximate solution is just the same as sampling the whole dataframe and doing a group_by after. No good.
+Answer:
+Let start with some dummy data:
+n = 100
+seed = 0
+
+df = pl.DataFrame({
+    "groups": (pl.int_range(n, eager=True) % 5).shuffle(seed=seed),
+    "values": pl.int_range(n, eager=True).shuffle(seed=seed)
+})
+
+shape: (100, 2)
+┌────────┬────────┐
+│ groups ┆ values │
+│ ---    ┆ ---    │
+│ i64    ┆ i64    │
+╞════════╪════════╡
+│ 0      ┆ 55     │
+│ 0      ┆ 40     │
+│ 2      ┆ 57     │
+│ 4      ┆ 99     │
+│ 4      ┆ 4      │
+│ …      ┆ …      │
+│ 0      ┆ 90     │
+│ 2      ┆ 87     │
+│ 1      ┆ 96     │
+│ 3      ┆ 43     │
+│ 4      ┆ 44     │
+└────────┴────────┘
+
+This gives us 100 / 5, is 5 groups of 20 elements. Let's verify that:
+df.group_by("groups").agg(pl.len())
+
+shape: (5, 2)
+┌────────┬─────┐
+│ groups ┆ len │
+│ ---    ┆ --- │
+│ i64    ┆ u32 │
+╞════════╪═════╡
+│ 0      ┆ 20  │
+│ 4      ┆ 20  │
+│ 2      ┆ 20  │
+│ 3      ┆ 20  │
+│ 1      ┆ 20  │
+└────────┴─────┘
+
+Sample our data
+Now we are going to use a window function to take a sample of our data.
+df.filter(
+    pl.int_range(pl.len()).shuffle().over("groups") < 10
+)
+
+shape: (50, 2)
+┌────────┬────────┐
+│ groups ┆ values │
+│ ---    ┆ ---    │
+│ i64    ┆ i64    │
+╞════════╪════════╡
+│ 0      ┆ 55     │
+│ 2      ┆ 57     │
+│ 4      ┆ 99     │
+│ 4      ┆ 4      │
+│ 1      ┆ 81     │
+│ …      ┆ …      │
+│ 2      ┆ 22     │
+│ 1      ┆ 76     │
+│ 3      ┆ 98     │
+│ 0      ┆ 90     │
+│ 4      ┆ 44     │
+└────────┴────────┘
+
+For every group in over("group") the pl.int_range(pl.len()) expression creates an index row. We then shuffle that range so that we take a sample and not a slice. Then we only want to take the index values that are lower than 10. This creates a boolean mask that we can pass to the filter method.
+END
+
+
+Question:
+Being a new user to polars coming from pandas, I have searched polars GitHub pages, user guide, stackoverflow and discord channel on how to add a new column to a polars dataframe.
+I have only found polars examples on how to add new columns based on existing ones.
+How should the following pandas example be converted to polars syntax?
+import pandas as pd
+
+df = pd.DataFrame({'existing_column': [1, 2, 3]})
+
+df['new_column'] = "some text"
+
+With expected content of final dataframe:
+
+
+
+
+existing_column
+new_column
+
+
+
+
+1
+some_text
+
+
+2
+some_text
+
+
+3
+some_text
+Answer:
+you can use with_columns and pl.lit to add a new column with Polars that is a constant and not based on existing columns.
+You can use it for both text and numbers.
+Here is an example:
+df.with_columns(
+    new_column = pl.lit('some_text')
+)
+
+The advantage of Polars is that all new columns added and all columns transformed within the same with_columns will be calculated in parallel.
+END
+
+
+Question:
+in pandas：
+df['new'] = a
+
+where a is a numerical Series or just a number.
+while in polars we can add a char
+df.with_column(
+ [
+  pl.all(),
+  pl.lit('str').alias('new')
+ ]
+)
+
+but how to add a numerical Series or a number as a new column in polars?
+Notice that the new numerical Series is not in the original df, it is a result of some computation.
+Answer:
+Let's start with this DataFrame:
+import polars as pl
+df = pl.DataFrame(
+    {
+        "col1": [1, 2, 3, 4, 5],
+    }
+)
+print(df)
+
+shape: (5, 1)
+┌──────┐
+│ col1 │
+│ ---  │
+│ i64  │
+╞══════╡
+│ 1    │
+├╌╌╌╌╌╌┤
+│ 2    │
+├╌╌╌╌╌╌┤
+│ 3    │
+├╌╌╌╌╌╌┤
+│ 4    │
+├╌╌╌╌╌╌┤
+│ 5    │
+└──────┘
+
+To add a scalar (single value)
+Use polars.lit.
+my_scalar = -1
+df.with_column(pl.lit(my_scalar).alias("col_scalar"))
+
+shape: (5, 2)
+┌──────┬────────────┐
+│ col1 ┆ col_scalar │
+│ ---  ┆ ---        │
+│ i64  ┆ i32        │
+╞══════╪════════════╡
+│ 1    ┆ -1         │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 2    ┆ -1         │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 3    ┆ -1         │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 4    ┆ -1         │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 5    ┆ -1         │
+└──────┴────────────┘
+
+You can also choose the datatype of the new column using the dtype keyword.
+df.with_column(pl.lit(my_scalar, dtype=pl.Float64).alias("col_scalar_float"))
+
+shape: (5, 2)
+┌──────┬──────────────────┐
+│ col1 ┆ col_scalar_float │
+│ ---  ┆ ---              │
+│ i64  ┆ f64              │
+╞══════╪══════════════════╡
+│ 1    ┆ -1.0             │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 2    ┆ -1.0             │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 3    ┆ -1.0             │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 4    ┆ -1.0             │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 5    ┆ -1.0             │
+└──────┴──────────────────┘
+
+To add a list
+To add a list of values (perhaps from some external computation), use the polars.Series constructor and provide a name to the Series constructor.
+my_list = [10, 20, 30, 40, 50]
+df.with_column(pl.Series(name="col_list", values=my_list))
+
+shape: (5, 2)
+┌──────┬──────────┐
+│ col1 ┆ col_list │
+│ ---  ┆ ---      │
+│ i64  ┆ i64      │
+╞══════╪══════════╡
+│ 1    ┆ 10       │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┤
+│ 2    ┆ 20       │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┤
+│ 3    ┆ 30       │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┤
+│ 4    ┆ 40       │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┤
+│ 5    ┆ 50       │
+└──────┴──────────┘
+
+You can use the dtype keyword to control the datatype of the new series, if needed.
+df.with_column(pl.Series(name="col_list", values=my_list, dtype=pl.Float64))
+
+shape: (5, 2)
+┌──────┬──────────┐
+│ col1 ┆ col_list │
+│ ---  ┆ ---      │
+│ i64  ┆ f64      │
+╞══════╪══════════╡
+│ 1    ┆ 10.0     │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┤
+│ 2    ┆ 20.0     │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┤
+│ 3    ┆ 30.0     │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┤
+│ 4    ┆ 40.0     │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┤
+│ 5    ┆ 50.0     │
+└──────┴──────────┘
+
+To add a Series
+If you already have a Series, you can just provide a reference to it.
+my_series = pl.Series(name="my_series_name", values=[10, 20, 30, 40, 50])
+df.with_column(my_series)
+
+shape: (5, 2)
+┌──────┬────────────────┐
+│ col1 ┆ my_series_name │
+│ ---  ┆ ---            │
+│ i64  ┆ i64            │
+╞══════╪════════════════╡
+│ 1    ┆ 10             │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 2    ┆ 20             │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 3    ┆ 30             │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 4    ┆ 40             │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 5    ┆ 50             │
+└──────┴────────────────┘
+
+If your Series does not already have a name, you can provide one using the alias Expression.
+my_series_no_name = pl.Series(values=[10, 20, 30, 40, 50])
+df.with_column(my_series_no_name.alias('col_no_name'))
+
+shape: (5, 2)
+┌──────┬─────────────┐
+│ col1 ┆ col_no_name │
+│ ---  ┆ ---         │
+│ i64  ┆ i64         │
+╞══════╪═════════════╡
+│ 1    ┆ 10          │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 2    ┆ 20          │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 3    ┆ 30          │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 4    ┆ 40          │
+├╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 5    ┆ 50          │
+└──────┴─────────────┘
+END
+
+
+Question:
+I'm unable to use polars dataframes with scikitlearn for ML training.
+Currently I'm doing all the dataframe preprocessing in polars and during model training i'm converting it into a pandas one in order for it to work.
+Is there any method to directly use polars dataframe as it is for ML training without changing it to pandas?
+Answer:
+You must call to_numpy when passing a DataFrame to sklearn. Though sometimes sklearn can work on polars Series it is still good type hygiene to transform to the type the host library expects.
+import polars as pl
+from sklearn.linear_model import LinearRegression
+
+data = pl.DataFrame(
+    np.random.randn(100, 5)
+)
+
+x = data.select([
+    pl.all().exclude("column_0"),
+])
+
+y = data.select(pl.col("column_0").alias("y"))
+
+
+x_train = x[:80]
+y_train = y[:80]
+
+x_test = x[80:]
+y_test = y[80:]
+
+
+m = LinearRegression()
+
+m.fit(X=x_train.to_numpy(), y=y_train.to_numpy())
+m.predict(x_test.to_numpy())
+END
+
+
+Question:
+How to add new feature like length of data frame & Drop rows value using indexing.
+I want to a add a new column where I can count the no-of rows available in a data frame,
+& using indexing drop rows value.
+for i in range(len(df)):
+    if (df['col1'][i] == df['col2'][i]) and (df['col4'][i] == df['col3'][i]):
+        pass
+    elif (df['col1'][i] == df['col3'][i]) and (df['col4'][i] == df['col2'][i]): 
+        df['col1'][i] = df['col2'][i]
+        df['col4'][i] = df['col3'][i]
+    else:
+       df = df.drop(i)
+Answer:
+Polars doesn't allow much mutation and favors pure data handling. Meaning that you create a new DataFrame instead of modifying an existing one.
+So it helps to think of the data you want to keep instead of the row you want to remove.
+Below I have written an example that keeps all data except for the 2nd row. Note that the slice will be the fastest of the two and will have zero data copy.
+df = pl.DataFrame({
+    "a": [1, 2, 3],
+    "b": [True, False, None]
+}).with_row_count("row_nr")
+
+print(df)
+
+# filter on condition
+df_a = df.filter(pl.col("row_nr") != 1)
+
+# stack two slices
+df_b = df[:1].vstack(df[2:])
+
+# or via explicit slice syntax
+df_b = df.slice(0, 1).vstack(df.slice(2, -1))
+
+assert df_a.frame_equal(df_b)
+
+print(df_a)
+
+Outputs:
+shape: (3, 3)
+┌────────┬─────┬───────┐
+│ row_nr ┆ a   ┆ b     │
+│ ---    ┆ --- ┆ ---   │
+│ u32    ┆ i64 ┆ bool  │
+╞════════╪═════╪═══════╡
+│ 0      ┆ 1   ┆ true  │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌╌╌┤
+│ 1      ┆ 2   ┆ false │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌╌╌┤
+│ 2      ┆ 3   ┆ null  │
+└────────┴─────┴───────┘
+shape: (2, 3)
+┌────────┬─────┬──────┐
+│ row_nr ┆ a   ┆ b    │
+│ ---    ┆ --- ┆ ---  │
+│ u32    ┆ i64 ┆ bool │
+╞════════╪═════╪══════╡
+│ 0      ┆ 1   ┆ true │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌╌┤
+│ 2      ┆ 3   ┆ null │
+└────────┴─────┴──────┘
+END
+
+
+Question:
+Is there any built-in function in polars or a better way to convert time durations to numeric by defining the time resolution (e.g.: days, hours, minutes)?
+# Create a dataframe
+df = pl.DataFrame(
+    {
+        "from": ["2023-01-01", "2023-01-02", "2023-01-03"],
+        "to": ["2023-01-04", "2023-01-05", "2023-01-06"],
+    }
+)
+
+
+# Convert to date and calculate the time difference
+df = df.with_columns(
+    [
+        pl.col("from").str.strptime(pl.Date, "%Y-%m-%d").alias("from_date"),
+        pl.col("to").str.strptime(pl.Date, "%Y-%m-%d").alias("to_date"),
+    ]
+).with_columns((pl.col("to_date") - pl.col("from_date")).alias("time_diff"))
+
+# Convert the time difference to int (in days)
+df = df.with_columns(
+    ((pl.col("time_diff") / (24 * 60 * 60 * 1000)).cast(pl.Int8)).alias("time_diff_int")
+)
+Answer:
+the dt accessor lets you obtain individual components, is that what you're looking for?
+df["time_diff"].dt.days()
+Series: 'time_diff' [i64]
+[
+    3
+    3
+    3
+]
+
+df["time_diff"].dt.hours()
+Series: 'time_diff' [i64]
+[
+    72
+    72
+    72
+]
+
+df["time_diff"].dt.minutes()
+Series: 'time_diff' [i64]
+[
+    4320
+    4320
+    4320
+]
+
+docs: API reference, series/timeseries
+END
+
+
+Question:
+Is there an equivalent way to to df.group_by().shift in polars? Use pandas.shift() within a group
+Answer:
+You can use the over expression to accomplish this in Polars.  Using the example from the link...
+import polars as pl
+
+df = pl.DataFrame({
+    'object': [1, 1, 1, 2, 2],
+    'period': [1, 2, 4, 4, 23],
+    'value': [24, 67, 89, 5, 23],
+})
+
+df.with_column(
+    pl.col('value').shift().over('object').alias('prev_value')
+)
+
+shape: (5, 4)
+┌────────┬────────┬───────┬────────────┐
+│ object ┆ period ┆ value ┆ prev_value │
+│ ---    ┆ ---    ┆ ---   ┆ ---        │
+│ i64    ┆ i64    ┆ i64   ┆ i64        │
+╞════════╪════════╪═══════╪════════════╡
+│ 1      ┆ 1      ┆ 24    ┆ null       │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1      ┆ 2      ┆ 67    ┆ 24         │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1      ┆ 4      ┆ 89    ┆ 67         │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 2      ┆ 4      ┆ 5     ┆ null       │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 2      ┆ 23     ┆ 23    ┆ 5          │
+└────────┴────────┴───────┴────────────┘
+
+To perform this on more than one column, you can specify the columns in the pl.col expression, and then use a prefix/suffix to name the new columns.  For example:
+df.with_columns(
+    pl.col(['period', 'value']).shift().over('object').prefix("prev_")
+)
+
+shape: (5, 5)
+┌────────┬────────┬───────┬─────────────┬────────────┐
+│ object ┆ period ┆ value ┆ prev_period ┆ prev_value │
+│ ---    ┆ ---    ┆ ---   ┆ ---         ┆ ---        │
+│ i64    ┆ i64    ┆ i64   ┆ i64         ┆ i64        │
+╞════════╪════════╪═══════╪═════════════╪════════════╡
+│ 1      ┆ 1      ┆ 24    ┆ null        ┆ null       │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1      ┆ 2      ┆ 67    ┆ 1           ┆ 24         │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1      ┆ 4      ┆ 89    ┆ 2           ┆ 67         │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 2      ┆ 4      ┆ 5     ┆ null        ┆ null       │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 2      ┆ 23     ┆ 23    ┆ 4           ┆ 5          │
+└────────┴────────┴───────┴─────────────┴────────────┘
+
+Using multiple values with over
+Let's use this data.
+df = pl.DataFrame(
+    {
+        "id": [1] * 5 + [2] * 5,
+        "date": ["2020-01-01", "2020-01-01", "2020-02-01", "2020-02-01", "2020-02-01"] * 2,
+        "value1": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        "value2": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+    }
+).with_column(pl.col('date').str.strptime(pl.Date))
+df
+
+shape: (10, 4)
+┌─────┬────────────┬────────┬────────┐
+│ id  ┆ date       ┆ value1 ┆ value2 │
+│ --- ┆ ---        ┆ ---    ┆ ---    │
+│ i64 ┆ date       ┆ i64    ┆ i64    │
+╞═════╪════════════╪════════╪════════╡
+│ 1   ┆ 2020-01-01 ┆ 1      ┆ 10     │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ 1   ┆ 2020-01-01 ┆ 2      ┆ 20     │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ 1   ┆ 2020-02-01 ┆ 3      ┆ 30     │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ 1   ┆ 2020-02-01 ┆ 4      ┆ 40     │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ 1   ┆ 2020-02-01 ┆ 5      ┆ 50     │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ 2   ┆ 2020-01-01 ┆ 6      ┆ 60     │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ 2   ┆ 2020-01-01 ┆ 7      ┆ 70     │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ 2   ┆ 2020-02-01 ┆ 8      ┆ 80     │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ 2   ┆ 2020-02-01 ┆ 9      ┆ 90     │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ 2   ┆ 2020-02-01 ┆ 10     ┆ 100    │
+└─────┴────────────┴────────┴────────┘
+
+We can place a list of our grouping variables in the over expression (as well as a list in our pl.col expression).  Polars will run them all in parallel.
+df.with_columns([
+    pl.col(["value1", "value2"]).shift().over(['id','date']).prefix("prev_"),
+    pl.col(["value1", "value2"]).diff().over(['id','date']).suffix("_diff"),
+])
+
+shape: (10, 8)
+┌─────┬────────────┬────────┬────────┬─────────────┬─────────────┬─────────────┬─────────────┐
+│ id  ┆ date       ┆ value1 ┆ value2 ┆ prev_value1 ┆ prev_value2 ┆ value1_diff ┆ value2_diff │
+│ --- ┆ ---        ┆ ---    ┆ ---    ┆ ---         ┆ ---         ┆ ---         ┆ ---         │
+│ i64 ┆ date       ┆ i64    ┆ i64    ┆ i64         ┆ i64         ┆ i64         ┆ i64         │
+╞═════╪════════════╪════════╪════════╪═════════════╪═════════════╪═════════════╪═════════════╡
+│ 1   ┆ 2020-01-01 ┆ 1      ┆ 10     ┆ null        ┆ null        ┆ null        ┆ null        │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1   ┆ 2020-01-01 ┆ 2      ┆ 20     ┆ 1           ┆ 10          ┆ 1           ┆ 10          │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1   ┆ 2020-02-01 ┆ 3      ┆ 30     ┆ null        ┆ null        ┆ null        ┆ null        │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1   ┆ 2020-02-01 ┆ 4      ┆ 40     ┆ 3           ┆ 30          ┆ 1           ┆ 10          │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1   ┆ 2020-02-01 ┆ 5      ┆ 50     ┆ 4           ┆ 40          ┆ 1           ┆ 10          │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 2   ┆ 2020-01-01 ┆ 6      ┆ 60     ┆ null        ┆ null        ┆ null        ┆ null        │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 2   ┆ 2020-01-01 ┆ 7      ┆ 70     ┆ 6           ┆ 60          ┆ 1           ┆ 10          │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 2   ┆ 2020-02-01 ┆ 8      ┆ 80     ┆ null        ┆ null        ┆ null        ┆ null        │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 2   ┆ 2020-02-01 ┆ 9      ┆ 90     ┆ 8           ┆ 80          ┆ 1           ┆ 10          │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 2   ┆ 2020-02-01 ┆ 10     ┆ 100    ┆ 9           ┆ 90          ┆ 1           ┆ 10          │
+└─────┴────────────┴────────┴────────┴─────────────┴─────────────┴─────────────┴─────────────┘
+END
+
+
+Question:
+I know how to apply a function to all columns present in a Pandas-DataFrame. However, I have not figured out yet how to achieve this when using a Polars-DataFrame.
+I checked the section from the Polars User Guide devoted to this topic, but I have not find the answer. Here I attach a code snippet with my unsuccessful attempts.
+import numpy as np
+import polars as pl
+import seaborn as sns
+
+# Loading toy dataset as Pandas DataFrame using Seaborn
+df_pd = sns.load_dataset('iris')
+
+# Converting Pandas DataFrame to Polars DataFrame
+df_pl = pl.DataFrame(df_pd)
+
+# Dropping the non-numeric column...
+df_pd = df_pd.drop(columns='species')                     # ... using Pandas
+df_pl = df_pl.drop('species')                             # ... using Polars
+
+# Applying function to the whole DataFrame...
+df_pd_new = df_pd.apply(np.log2)                          # ... using Pandas
+# df_pl_new = df_pl.apply(np.log2)                        # ... using Polars?
+
+# Applying lambda function to the whole DataFrame...
+df_pd_new = df_pd.apply(lambda c: np.log2(c))             # ... using Pandas
+# df_pl_new = df_pl.apply(lambda c: np.log2(c))           # ... using Polars?
+
+Thanks in advance for your help and your time.
+Answer:
+You can use the expression syntax to select all columns with pl.col("*")/pl.all() and then map the numpy np.log2(..) function over the columns.
+df.select(
+    pl.all().map_batches(np.log2)
+)
+
+Polars expressions also support numpy universal functions https://numpy.org/doc/stable/reference/ufuncs.html
+That means you can pass a polars expression to a numpy ufunc:
+df.select([
+    np.log2(pl.all())
+])
+
+Note that the difference between an apply (now map_elements) and a map (now map_batches) is that map_elements would be called upon every numeric value, and the map_batches is over the whole Series. We choose map_batches here, because that would be faster.
+END
+
+
+Question:
+I have a polars DataFrame with a number of Series that look like:
+pl.Series(['cow', 'cat', '', 'lobster', ''])
+
+and I'd like them to be
+pl.Series(['cow', 'cat', pl.Null, 'lobster', pl.Null])
+
+A simple string replacement won't work since pl.Null is not of type PyString:
+pl.Series(['cow', 'cat', '', 'lobster', '']).str.replace('', pl.Null)
+
+What's the idiomatic way of doing this for a Series/DataFrame in polars?
+Answer:
+Series
+For a single Series, you can use the set method.
+import polars as pl
+my_series = pl.Series(['cow', 'cat', '', 'lobster', ''])
+my_series.set(my_series.str.lengths() == 0, None)
+
+shape: (5,)
+Series: '' [str]
+[
+        "cow"
+        "cat"
+        null
+        "lobster"
+        null
+]
+
+DataFrame
+For DataFrames, I would suggest using when/then/otherwise.  For example, with this data:
+df = pl.DataFrame({
+    'str1': ['cow', 'dog', "", 'lobster', ''],
+    'str2': ['', 'apple', "orange", '', 'kiwi'],
+    'str3': ['house', '', "apartment", 'condo', ''],
+})
+df
+
+shape: (5, 3)
+┌─────────┬────────┬───────────┐
+│ str1    ┆ str2   ┆ str3      │
+│ ---     ┆ ---    ┆ ---       │
+│ str     ┆ str    ┆ str       │
+╞═════════╪════════╪═══════════╡
+│ cow     ┆        ┆ house     │
+├╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ dog     ┆ apple  ┆           │
+├╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│         ┆ orange ┆ apartment │
+├╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ lobster ┆        ┆ condo     │
+├╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│         ┆ kiwi   ┆           │
+└─────────┴────────┴───────────┘
+
+We can run a replacement on all string columns as follows:
+df.with_columns([
+    pl.when(pl.col(pl.Utf8).str.lengths() ==0)
+    .then(None)
+    .otherwise(pl.col(pl.Utf8))
+    .keep_name()
+])
+
+shape: (5, 3)
+┌─────────┬────────┬───────────┐
+│ str1    ┆ str2   ┆ str3      │
+│ ---     ┆ ---    ┆ ---       │
+│ str     ┆ str    ┆ str       │
+╞═════════╪════════╪═══════════╡
+│ cow     ┆ null   ┆ house     │
+├╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ dog     ┆ apple  ┆ null      │
+├╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ null    ┆ orange ┆ apartment │
+├╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ lobster ┆ null   ┆ condo     │
+├╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ null    ┆ kiwi   ┆ null      │
+└─────────┴────────┴───────────┘
+
+The above should be fairly performant.
+If you only want to replace empty strings with null on certain columns, you can provide a list:
+only_these = ['str1', 'str2']
+df.with_columns([
+    pl.when(pl.col(only_these).str.lengths() == 0)
+    .then(None)
+    .otherwise(pl.col(only_these))
+    .keep_name()
+])
+
+shape: (5, 3)
+┌─────────┬────────┬───────────┐
+│ str1    ┆ str2   ┆ str3      │
+│ ---     ┆ ---    ┆ ---       │
+│ str     ┆ str    ┆ str       │
+╞═════════╪════════╪═══════════╡
+│ cow     ┆ null   ┆ house     │
+├╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ dog     ┆ apple  ┆           │
+├╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ null    ┆ orange ┆ apartment │
+├╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ lobster ┆ null   ┆ condo     │
+├╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ null    ┆ kiwi   ┆           │
+└─────────┴────────┴───────────┘
+END
+
+
+Question:
+I am using polars in place of pandas. I am quite amazed by the speed and lazy computation/evaluation. Right now, there are a lot of methods on lazy dataframe, but they can only drive me so far.
+So, I am wondering what is the best way to use polars in combination with other tools to achieve more complicated operations, such as regression/model fitting.
+To be more specific, I will give an example involving linear regression.
+Assume I have a polars dataframe with columns day, y, x1 and x2, and I want to generate a series, which is the residual of regressing y on x1 and x2 group by day. I have included the code example as follows and how it can be solved using pandas and statsmodels. How can I get the same result with the most efficiency using idiomatic polars?
+import pandas as pd
+import statsmodels.api as sm
+
+def regress_resid(df, yvar, xvars):
+    result = sm.OLS(df[yvar], sm.add_constant(df[xvars])).fit()
+    return result.resid
+
+df = pd.DataFrame(
+    {
+        "day": [1, 1, 1, 1, 1, 2, 2, 2, 2, 2],
+        "y": [1, 6, 3, 2, 8, 4, 5, 2, 7, 3],
+        "x1": [1, 8, 2, 3, 5, 2, 1, 2, 7, 3],
+        "x2": [8, 5, 3, 6, 3, 7, 3, 2, 9, 1],
+    }
+)
+
+df.group_by("day").apply(regress_resid, "y", ["x1, "x2])
+# day
+# 1    0    0.772431
+#      1   -0.689233
+#      2   -1.167210
+#      3   -0.827896
+#      4    1.911909
+# 2    5   -0.851691
+#      6    1.719451
+#      7   -1.167727
+#      8    0.354871
+#      9   -0.054905
+
+Thanks for your help.
+Answer:
+If you want to pass multiple columns to a function, you have to pack them into a Struct as polars expression always map from Series -> Series.
+Because polars does not use numpy memory which statsmodels does, you must convert the polars types to_numpy. This is often free in case of 1D structures.
+Finally, the function should not return a numpy array, but a polars Series instead, so we convert the result.
+import polars as pl
+from functools import partial
+import statsmodels.api as sm
+
+def regress_resid(s: pl.Series, yvar: str, xvars: list[str]) -> pl.Series:
+    df = s.struct.unnest()
+    yvar = df[yvar].to_numpy()
+    xvars = df[xvars].to_numpy()
+    
+    result = sm.OLS(yvar, sm.add_constant(xvars)).fit()
+    return pl.Series(result.resid)
+    
+
+df = pl.DataFrame(
+    {
+        "day": [1, 1, 1, 1, 1, 2, 2, 2, 2, 2],
+        "y": [1, 6, 3, 2, 8, 4, 5, 2, 7, 3],
+        "x1": [1, 8, 2, 3, 5, 2, 1, 2, 7, 3],
+        "x2": [8, 5, 3, 6, 3, 7, 3, 2, 9, 1],
+    }
+)
+
+(df.group_by("day")
+   .agg(
+       pl.struct(["y", "x1", "x2"]).map_elements(partial(regress_resid, yvar="y", xvars=["x1", "x2"]))
+   )
+)
+END
+
+
+Question:
+I wonder how i can transform Spark dataframe to Polars dataframe.
+Let's say i have this code on PySpark:
+df = spark.sql('''select * from tmp''')
+
+I can easily transform it to pandas dataframe using .toPandas.
+Is there something similar in polars, as I need to get a polars dataframe for further processing?
+Answer:
+Context
+Pyspark uses arrow to convert to pandas. Polars is an abstraction over arrow memory. So we can hijack the API that spark uses internally to create the arrow data and use that to create the polars DataFrame.
+TLDR
+Given an spark context we can write:
+import pyarrow as pa
+import polars as pl
+
+sql_context = SQLContext(spark)
+
+data = [('James',[1, 2]),]
+spark_df = sql_context.createDataFrame(data=data, schema = ["name","properties"])
+
+df = pl.from_arrow(pa.Table.from_batches(spark_df._collect_as_arrow()))
+
+print(df)
+
+shape: (1, 2)
+┌───────┬────────────┐
+│ name  ┆ properties │
+│ ---   ┆ ---        │
+│ str   ┆ list[i64]  │
+╞═══════╪════════════╡
+│ James ┆ [1, 2]     │
+└───────┴────────────┘
+
+Serialization steps
+This will actually be faster than the toPandas provided by spark itself, because it saves an extra copy.
+toPandas() will lead to this serialization/copy step:
+spark-memory -> arrow-memory -> pandas-memory
+With the query provided we have:
+spark-memory -> arrow/polars-memory
+END
+
+
+Question:
+In pandas, the following code will split the string from col1 into many columns. is there a way to do this in polars?
+d = {'col1': ["a/b/c/d", "a/b/c/d"]}
+df= pd.DataFrame(data=d)
+df[["a","b","c","d"]]=df["col1"].str.split('/',expand=True)
+Answer:
+Here's an algorithm that will automatically adjust for the required number of columns -- and should be quite performant.
+Let's start with this data.  Notice that I've purposely added the empty string "" and a null value - to show how the algorithm handles these values.  Also, the number of split strings varies widely.
+import polars as pl
+df = pl.DataFrame(
+    {
+        "my_str": ["cat", "cat/dog", None, "", "cat/dog/aardvark/mouse/frog"],
+    }
+)
+df
+
+shape: (5, 1)
+┌─────────────────────────────┐
+│ my_str                      │
+│ ---                         │
+│ str                         │
+╞═════════════════════════════╡
+│ cat                         │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ cat/dog                     │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ null                        │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│                             │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ cat/dog/aardvark/mouse/frog │
+└─────────────────────────────┘
+
+The Algorithm
+The algorithm below may be a bit more than you need, but you can edit/delete/add as you need.
+(
+    df
+    .with_row_count('id')
+    .with_column(pl.col("my_str").str.split("/").alias("split_str"))
+    .explode("split_str")
+    .with_column(
+        ("string_" + pl.arange(0, pl.count()).cast(pl.Utf8).str.zfill(2))
+        .over("id")
+        .alias("col_nm")
+    )
+    .pivot(
+        index=['id', 'my_str'],
+        values='split_str',
+        columns='col_nm',
+    )
+    .with_column(
+        pl.col('^string_.*$').fill_null("")
+    )
+)
+
+shape: (5, 7)
+┌─────┬─────────────────────────────┬───────────┬───────────┬───────────┬───────────┬───────────┐
+│ id  ┆ my_str                      ┆ string_00 ┆ string_01 ┆ string_02 ┆ string_03 ┆ string_04 │
+│ --- ┆ ---                         ┆ ---       ┆ ---       ┆ ---       ┆ ---       ┆ ---       │
+│ u32 ┆ str                         ┆ str       ┆ str       ┆ str       ┆ str       ┆ str       │
+╞═════╪═════════════════════════════╪═══════════╪═══════════╪═══════════╪═══════════╪═══════════╡
+│ 0   ┆ cat                         ┆ cat       ┆           ┆           ┆           ┆           │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1   ┆ cat/dog                     ┆ cat       ┆ dog       ┆           ┆           ┆           │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 2   ┆ null                        ┆           ┆           ┆           ┆           ┆           │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 3   ┆                             ┆           ┆           ┆           ┆           ┆           │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 4   ┆ cat/dog/aardvark/mouse/frog ┆ cat       ┆ dog       ┆ aardvark  ┆ mouse     ┆ frog      │
+└─────┴─────────────────────────────┴───────────┴───────────┴───────────┴───────────┴───────────┘
+
+
+How it works
+We first assign a row number id (which we'll need later), and use split to separate the strings.  Note that the split strings form a list.
+(
+    df
+    .with_row_count('id')
+    .with_column(pl.col("my_str").str.split("/").alias("split_str"))
+)
+
+shape: (5, 3)
+┌─────┬─────────────────────────────┬────────────────────────────┐
+│ id  ┆ my_str                      ┆ split_str                  │
+│ --- ┆ ---                         ┆ ---                        │
+│ u32 ┆ str                         ┆ list[str]                  │
+╞═════╪═════════════════════════════╪════════════════════════════╡
+│ 0   ┆ cat                         ┆ ["cat"]                    │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1   ┆ cat/dog                     ┆ ["cat", "dog"]             │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 2   ┆ null                        ┆ null                       │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 3   ┆                             ┆ [""]                       │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 4   ┆ cat/dog/aardvark/mouse/frog ┆ ["cat", "dog", ... "frog"] │
+└─────┴─────────────────────────────┴────────────────────────────┘
+
+Next, we'll use explode to put each string on its own row.  (Notice how the id column tracks the original row that each string came from.)
+(
+    df
+    .with_row_count('id')
+    .with_column(pl.col("my_str").str.split("/").alias("split_str"))
+    .explode("split_str")
+)
+
+shape: (10, 3)
+┌─────┬─────────────────────────────┬───────────┐
+│ id  ┆ my_str                      ┆ split_str │
+│ --- ┆ ---                         ┆ ---       │
+│ u32 ┆ str                         ┆ str       │
+╞═════╪═════════════════════════════╪═══════════╡
+│ 0   ┆ cat                         ┆ cat       │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1   ┆ cat/dog                     ┆ cat       │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1   ┆ cat/dog                     ┆ dog       │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 2   ┆ null                        ┆ null      │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 3   ┆                             ┆           │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 4   ┆ cat/dog/aardvark/mouse/frog ┆ cat       │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 4   ┆ cat/dog/aardvark/mouse/frog ┆ dog       │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 4   ┆ cat/dog/aardvark/mouse/frog ┆ aardvark  │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 4   ┆ cat/dog/aardvark/mouse/frog ┆ mouse     │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 4   ┆ cat/dog/aardvark/mouse/frog ┆ frog      │
+└─────┴─────────────────────────────┴───────────┘
+
+In the next step, we're going to generate our column names.  I chose to call each column string_XX where XX is the offset with regards to the original string.
+I've used the handy zfill expression so that 1 becomes 01.  (This makes sure that string_02 comes before string_10 if you decide to sort your columns later.)
+You can substitute your own naming in this step as you need.
+(
+    df
+    .with_row_count('id')
+    .with_column(pl.col("my_str").str.split("/").alias("split_str"))
+    .explode("split_str")
+    .with_column(
+        ("string_" + pl.arange(0, pl.count()).cast(pl.Utf8).str.zfill(2))
+        .over("id")
+        .alias("col_nm")
+    )
+)
+
+shape: (10, 4)
+┌─────┬─────────────────────────────┬───────────┬───────────┐
+│ id  ┆ my_str                      ┆ split_str ┆ col_nm    │
+│ --- ┆ ---                         ┆ ---       ┆ ---       │
+│ u32 ┆ str                         ┆ str       ┆ str       │
+╞═════╪═════════════════════════════╪═══════════╪═══════════╡
+│ 0   ┆ cat                         ┆ cat       ┆ string_00 │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1   ┆ cat/dog                     ┆ cat       ┆ string_00 │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1   ┆ cat/dog                     ┆ dog       ┆ string_01 │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 2   ┆ null                        ┆ null      ┆ string_00 │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 3   ┆                             ┆           ┆ string_00 │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 4   ┆ cat/dog/aardvark/mouse/frog ┆ cat       ┆ string_00 │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 4   ┆ cat/dog/aardvark/mouse/frog ┆ dog       ┆ string_01 │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 4   ┆ cat/dog/aardvark/mouse/frog ┆ aardvark  ┆ string_02 │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 4   ┆ cat/dog/aardvark/mouse/frog ┆ mouse     ┆ string_03 │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 4   ┆ cat/dog/aardvark/mouse/frog ┆ frog      ┆ string_04 │
+└─────┴─────────────────────────────┴───────────┴───────────┘
+
+In the next step, we'll use the pivot function to place each string in its own column.
+(
+    df
+    .with_row_count('id')
+    .with_column(pl.col("my_str").str.split("/").alias("split_str"))
+    .explode("split_str")
+    .with_column(
+        ("string_" + pl.arange(0, pl.count()).cast(pl.Utf8).str.zfill(2))
+        .over("id")
+        .alias("col_nm")
+    )
+    .pivot(
+        index=['id', 'my_str'],
+        values='split_str',
+        columns='col_nm',
+    )
+)
+
+shape: (5, 7)
+┌─────┬─────────────────────────────┬───────────┬───────────┬───────────┬───────────┬───────────┐
+│ id  ┆ my_str                      ┆ string_00 ┆ string_01 ┆ string_02 ┆ string_03 ┆ string_04 │
+│ --- ┆ ---                         ┆ ---       ┆ ---       ┆ ---       ┆ ---       ┆ ---       │
+│ u32 ┆ str                         ┆ str       ┆ str       ┆ str       ┆ str       ┆ str       │
+╞═════╪═════════════════════════════╪═══════════╪═══════════╪═══════════╪═══════════╪═══════════╡
+│ 0   ┆ cat                         ┆ cat       ┆ null      ┆ null      ┆ null      ┆ null      │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1   ┆ cat/dog                     ┆ cat       ┆ dog       ┆ null      ┆ null      ┆ null      │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 2   ┆ null                        ┆ null      ┆ null      ┆ null      ┆ null      ┆ null      │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 3   ┆                             ┆           ┆ null      ┆ null      ┆ null      ┆ null      │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 4   ┆ cat/dog/aardvark/mouse/frog ┆ cat       ┆ dog       ┆ aardvark  ┆ mouse     ┆ frog      │
+└─────┴─────────────────────────────┴───────────┴───────────┴───────────┴───────────┴───────────┘
+
+All that remains is to use fill_null to replace the null values with an empty string "".  Notice that I've used a regex expression in the col expression to target only those columns whose names start with "string_".  (Depending on your other data, you may not want to replace null with "" everywhere in your data.)
+END
+
+
+Question:
+How do I compare two polars DataFrames for value equality? It appears that == is only true if the two tables are the same object:
+import polars as pl
+pl.DataFrame({"x": [1,2,3]}) == pl.DataFrame({"x": [1,2,3]})  # False
+Answer:
+It's the equals method of DataFrame:
+import polars as pl
+pl.DataFrame({"x": [1,2,3]}).frame_equal(pl.DataFrame({"x": [1,2,3]}))  # True
+
+Before version 0.19.16, it was called frame_equals.
+END
+
+
+Question:
+This used to be handled in pandas as so:
+df.columns = df.columns.str.replace('.','_')
+
+This code works but definitely doesn't feel like the correct solution.
+renamed = {}
+for column_name in list(filter(lambda x: '.' in  x, df.columns)):
+    renamed[column_name] = column_name.replace('.', '_')
+df = df.rename(renamed)
+
+Thx
+Answer:
+df.columns returns a python List[str] and it also supports __setitem__, so you can just use python here.
+df = pl.DataFrame({
+    "a.c": [1, 2],
+    "b.d": [3, 4]
+})
+df.columns = list(map(lambda x: x.replace(".", "_"), df.columns))
+print(df)
+
+shape: (2, 2)
+┌─────┬─────┐
+│ a_c ┆ b_d │
+│ --- ┆ --- │
+│ i64 ┆ i64 │
+╞═════╪═════╡
+│ 1   ┆ 3   │
+├╌╌╌╌╌┼╌╌╌╌╌┤
+│ 2   ┆ 4   │
+└─────┴─────┘
+END
+
+
+Question:
+The CSV file I have is 70 Gb in size. I want to load the DF and count the number of rows, in lazy mode. What's the best way to do so?
+As far as I can tell, there is no function like shape in lazy mode according to the documentation.
+I found this answer which provide a solution not based on Polars, but I wonder if it is possible to do this in Polars as well.
+Answer:
+For polars 0.20.5+
+To get the row count using polars.
+First load it into a lazyframe...
+lzdf=pl.scan_csv("mybigfile.csv")
+
+Then count the rows and return the result
+lzdf.select(pl.len()).collect()
+
+If you just want a python scalar rather than a table as a result then just subset it
+lzdf.select(pl.len()).collect().item()
+
+For older versions
+To get the row count using polars.
+First load it into a lazyframe...
+lzdf=pl.scan_csv("mybigfile.csv")
+
+Then count the rows and return the result
+lzdf.select(pl.count()).collect()
+
+If you just want a python scalar rather than a table as a result then just subset it
+lzdf.select(pl.count()).collect().item()
+END
+
+
+Question:
+I know polars does not support index by design, so df.filter(expr).index isn't an option, another way I can think of is by adding a new column before applying any filters, not sure if this is an optimal way for doing so in polars
+df.with_column(pl.Series('index', range(len(df))).filter(expr).index
+Answer:
+Use with_row_count():
+In [18]: df = pl.DataFrame([pl.Series("a", [5, 9, 6]), pl.Series("b", [8, 3, 4])])
+
+In [19]: df
+Out[19]: 
+shape: (3, 2)
+┌─────┬─────┐
+│ a   ┆ b   │
+│ --- ┆ --- │
+│ i64 ┆ i64 │
+╞═════╪═════╡
+│ 5   ┆ 8   │
+├╌╌╌╌╌┼╌╌╌╌╌┤
+│ 9   ┆ 3   │
+├╌╌╌╌╌┼╌╌╌╌╌┤
+│ 6   ┆ 4   │
+└─────┴─────┘
+
+In [20]: df.with_row_count()
+Out[20]: 
+shape: (3, 3)
+┌────────┬─────┬─────┐
+│ row_nr ┆ a   ┆ b   │
+│ ---    ┆ --- ┆ --- │
+│ u32    ┆ i64 ┆ i64 │
+╞════════╪═════╪═════╡
+│ 0      ┆ 5   ┆ 8   │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌┤
+│ 1      ┆ 9   ┆ 3   │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌┤
+│ 2      ┆ 6   ┆ 4   │
+└────────┴─────┴─────┘
+
+# Start from 1 instead of 0.
+In [21]: df.with_row_count(offset=1)
+Out[21]: 
+shape: (3, 3)
+┌────────┬─────┬─────┐
+│ row_nr ┆ a   ┆ b   │
+│ ---    ┆ --- ┆ --- │
+│ u32    ┆ i64 ┆ i64 │
+╞════════╪═════╪═════╡
+│ 1      ┆ 5   ┆ 8   │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌┤
+│ 2      ┆ 9   ┆ 3   │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌┤
+│ 3      ┆ 6   ┆ 4   │
+└────────┴─────┴─────┘
+
+# Start from 1 and call column "my_index".
+In [22]: df.with_row_count(name="my_index", offset=1)
+Out[22]: 
+shape: (3, 3)
+┌──────────┬─────┬─────┐
+│ my_index ┆ a   ┆ b   │
+│ ---      ┆ --- ┆ --- │
+│ u32      ┆ i64 ┆ i64 │
+╞══════════╪═════╪═════╡
+│ 1        ┆ 5   ┆ 8   │
+├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌┤
+│ 2        ┆ 9   ┆ 3   │
+├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌┼╌╌╌╌╌┤
+│ 3        ┆ 6   ┆ 4   │
+└──────────┴─────┴─────┘
+END
+
+
+Question:
+In pandas we have the pandas.DataFrame.select_dtypes method that selects certain columns depending on the dtype. Is there a similar way to do such a thing in Polars?
+Answer:
+One can pass a data type to pl.col:
+import polars as pl
+
+df = pl.DataFrame(
+    {
+        "id": [1, 2, 3],
+        "name": ["John", "Jane", "Jake"],
+        "else": [10.0, 20.0, 30.0],
+    }
+)
+print(df.select([pl.col(pl.Utf8), pl.col(pl.Int64)]))
+
+Output:
+shape: (3, 2)
+┌──────┬─────┐
+│ name ┆ id  │
+│ ---  ┆ --- │
+│ str  ┆ i64 │
+╞══════╪═════╡
+│ John ┆ 1   │
+├╌╌╌╌╌╌┼╌╌╌╌╌┤
+│ Jane ┆ 2   │
+├╌╌╌╌╌╌┼╌╌╌╌╌┤
+│ Jake ┆ 3   │
+└──────┴─────┘
+END
+
+
+Question:
+In Pandas we can use the map function to map a dict to a series to create another series with the mapped values. More generally speaking, I believe it invokes the index operator of the argument, i.e. [].
+import pandas as pd
+
+dic = { 1: 'a', 2: 'b', 3: 'c' }
+
+pd.Series([1, 2, 3, 4]).map(dic) # returns ["a", "b", "c", NaN]
+
+I haven't found a way to do so directly in Polars, but have found a few alternatives. Would any of these be the recommended way to do so, or is there a better way?
+import polars as pl
+
+dic = { 1: 'a', 2: 'b', 3: 'c' }
+
+# Approach 1 - apply
+pl.Series([1, 2, 3, 4]).apply(lambda v: dic.get(v, None)) # returns ["a", "b", "c", null]
+
+# Approach 2 - left join
+(
+    pl.Series([1, 2, 3, 4])
+    .alias('key')
+    .to_frame()
+    .join(
+        pl.DataFrame({
+            'key': list(dic.keys()),
+            'value': list(dic.values()),
+        }),
+        on='key', how='left',
+    )['value']
+) # returns ["a", "b", "c", null]
+
+# Approach 3 - to pandas and back
+pl.from_pandas(pl.Series([1, 2, 3, 4]).to_pandas().map(dic)) # returns ["a", "b", "c", null]
+
+I saw this answer on mapping a dict of expressions but since its chains when/then/otherwise it might not work well for huge dicts.
+Answer:
+Update 2023-03-20
+Polars has a dedicated map_dict expression. Use this.
+Old answer
+Mapping a python dictionary over a polars Series should always be considered an anti-pattern. This will be terribly slow and what you want is semantically equal to a join.
+Use joins. They are heavily optimized, multithreaded and don't use python.
+Example
+import polars as pl
+
+dic = { 1: 'a', 2: 'b', 3: 'c' }
+
+mapper = pl.DataFrame({
+    "keys": list(dic.keys()),
+    "values": list(dic.values())
+})
+
+pl.Series([1, 2, 3, 4]).to_frame("keys").join(mapper, on="keys", how="left").to_series(1)
+
+Series: 'values' [str]
+[
+    "a"
+    "b"
+    "c"
+    null
+]
+END
+
+
+Question:
+I have this dataframe
+
+
+
+
+one
+two
+
+
+
+
+a
+hola
+
+
+b
+world
+
+
+
+
+And I want to change hola for hello:
+
+
+
+
+one
+two
+
+
+
+
+a
+hello
+
+
+b
+world
+
+
+
+
+How can I change the values of a row based on a condition in another column?
+For instance, with PostgreSQL I could do this:
+UPDATE my_table SET two = 'hello' WHERE one = 'a';
+
+Or in Spark
+my_table.withColumn("two", when(col("one") == "a", "hello"))
+
+I've tried using with_columns(pl.when(pl.col("one") == "a").then("hello")) but that changes the column "one".
+EDIT: I could create a SQL instance and plot my way through via SQL but there must be way to achieve this via the Python API.
+Answer:
+You were really close with with_columns(pl.when(pl.col("one") == "a").then("hello")) but you needed to tell it which column that should be.
+When you don't tell it which column you're referring to then it has to guess and in this case it guessed the column you referred to.
+Instead you do
+(df 
+    .with_columns(
+        two=pl.when(pl.col('one')=='a')
+                .then(pl.lit('hello'))
+                .otherwise(pl.col('two')))
+)
+
+This uses the **kwargs input of with_columns to allow the column named to be on the left of an equal sign as though it were a parameter to a function. You can also use alias syntax like this...
+(df 
+    .with_columns(
+        (pl.when(pl.col('one')=='a')
+                .then(pl.lit('hello'))
+                .otherwise(pl.col('two')))
+            .alias('two')
+                )
+)
+
+Note that I wrapped the entire when/then/otherwise in parenthesis. The order of operations around when/then/otherwise and alias is weird so I find it's best to always completely wrap them in parenthesis to avoid unexpected results. Worst case scenario is you have redundant parenthesis which doesn't hurt anything.
+END
+
+
+Question:
+Currently when I try to retrieve date from a polars datetime column, I have to write sth. similar to:
+df = pl.DataFrame({
+    'time': [dt.datetime.now()]
+})
+
+
+df = df.select([
+    pl.col("*"),
+    pl.col("time").apply(lambda x: x.date()).alias("date")
+])
+
+Is there a different way, something closer to:
+pl.col("time").dt.date().alias("date")
+Answer:
+You can cast a Datetime column to a Date column:
+
+import datetime
+import polars as pl
+
+df = pl.DataFrame({
+    'time': [datetime.datetime.now()]
+})
+
+df.with_columns(
+    pl.col("time").cast(pl.Date)
+)
+
+shape: (1, 1)
+┌────────────┐
+│ time       │
+│ ---        │
+│ date       │
+╞════════════╡
+│ 2022-08-02 │
+└────────────┘
+END
+
+
+Question:
+I am using below dataframe to convert to dictionary in specific format.
+However, I am getting an error TypeError: unhashable type: 'Series'
+import polars as pl
+
+#input (polars eager dataframe):
+polar_df = pl.DataFrame(
+"foo": ['a', 'b', 'c'],
+"bar": [[6.0, 7.0, 8.0],[9.0,10.0,11.0],[12.0,13.0,14.0]]
+)
+
+#expected output (dictionary):
+#{'a':[6.0, 7.0, 8.0],'b':[9.0,10.0,11.0],'c':[12.0,13.0,14.0]}
+
+dict_output = 
+dict(zip(polar_df.select(pl.col('foo')),
+polar_df.select(pl.col('bar'))
+))
+Answer:
+The "polars way" to do this is dict() + .iter_rows()
+df = pl.DataFrame({
+    "foo": ['a', 'b', 'c'],
+    "bar": [[6.0, 7.0, 8.0],[9.0,10.0,11.0],[12.0,13.0,14.0]]
+})
+
+>>> dict(df.iter_rows())
+{'a': [6.0, 7.0, 8.0], 'b': [9.0, 10.0, 11.0], 'c': [12.0, 13.0, 14.0]}
+END
+
+
+Question:
+In pandas it happens automatically, just by calling pd.concat([df1, df2, df3]) and the frame that didn't have the column previously just gets a column filled with NaNs.
+In polars I get a 'shape error' with the message that the columns differ (11 cols in df1 vs 12 cols in df2).
+Answer:
+Polars cares about schema correctness by default in operations and prefers throwing an error above silently succeeding as it might indicate a bug in your program.
+If you want polars to add the columns, add the kwarg how="diagonal" to pl.concat.
+df_a = pl.DataFrame({
+    "a": [1, 2, 3],
+    "b": [True, None, False],
+})
+
+
+df_b = pl.DataFrame({
+    "a": [4, 5],
+    "c": ["bar", "ham"]
+})
+
+
+pl.concat([df_a, df_b], how="diagonal")
+
+shape: (5, 3)
+┌─────┬───────┬──────┐
+│ a   ┆ b     ┆ c    │
+│ --- ┆ ---   ┆ ---  │
+│ i64 ┆ bool  ┆ str  │
+╞═════╪═══════╪══════╡
+│ 1   ┆ true  ┆ null │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌┤
+│ 2   ┆ null  ┆ null │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌┤
+│ 3   ┆ false ┆ null │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌┤
+│ 4   ┆ null  ┆ bar  │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌┤
+│ 5   ┆ null  ┆ ham  │
+└─────┴───────┴──────┘
+END
+
+
+Question:
+I have a Polars dataframe in the form:
+df = pl.DataFrame({'a':[1,2,3], 'b':[['a','b'],['a'],['c','d']]}) 
+
+┌─────┬────────────┐
+│ a   ┆ b          │
+│ --- ┆ ---        │
+│ i64 ┆ list[str]  │
+╞═════╪════════════╡
+│ 1   ┆ ["a", "b"] │
+│ 2   ┆ ["a"]      │
+│ 3   ┆ ["c", "d"] │
+└─────┴────────────┘
+
+I want to convert it to the following form.  I plan to save to a parquet file, and query the file (with sql).
+┌─────┬─────┐
+│ a   ┆ b   │
+│ --- ┆ --- │
+│ i64 ┆ str │
+╞═════╪═════╡
+│ 1   ┆ "a" │
+│ 1   ┆ "b" │
+│ 2   ┆ "a" │
+│ 3   ┆ "c" │
+│ 3   ┆ "d" │
+└─────┴─────┘
+
+I have seen an answer that works on struct columns, but df.unnest('b') on my data results in the error:
+SchemaError: Series of dtype: List(Utf8) != Struct
+
+I also found a github issue that shows list can be converted to a struct, but I can't work out how to do that, or if it applies here.
+Answer:
+To decompose column with Lists, you can use .explode() method (doc)
+df = pl.DataFrame({'a':[1,2,3], 'b':[['a','b'],['a'],['c','d']]})
+
+df.explode("b")
+
+┌─────┬─────┐
+│ a   ┆ b   │
+│ --- ┆ --- │
+│ i64 ┆ str │
+╞═════╪═════╡
+│ 1   ┆ a   │
+│ 1   ┆ b   │
+│ 2   ┆ a   │
+│ 3   ┆ c   │
+│ 3   ┆ d   │
+└─────┴─────┘
+END
+
+
+Question:
+The statement
+
+I'm reading data sets using Polars.read_csv() method via a Python file handler:
+
+ with gzip.open(os.path.join(getParameters()['rdir'], dataset)) as compressed_file:
+    df = pl.read_csv(compressed_file, sep = '\t', ignore_errors=True)
+
+
+A performance warning keeps popping up:
+
+Polars found a filename. Ensure you pass a path to the file instead of a python file object when possible for best performance.
+
+Possible solutions
+
+I already tried Python warning suppression, but it seems Polars literally just prints out this statement without any default warning associated.
+Another possibility would be to read using non-handler methods?
+
+Any ideas on how to get rid of this annoying message will be highly appreciated.
+Answer:
+I had a similar issue with opening from a ZipFile object. The solution was to add a .read() method to the filename. Maybe the same would work in your case?
+ with gzip.open(os.path.join(getParameters()['rdir'], dataset)) as compressed_file:
+    df = pl.read_csv(compressed_file.read(), sep = '\t', ignore_errors=True)
+END
+
+
+Question:
+Edit:
+This has been filed as bug in the Polars repository:
+https://github.com/pola-rs/polars/issues/6152
+And the VSCode Jupyter repo:
+https://github.com/microsoft/vscode-jupyter/issues/12519
+
+I am testing Python-Polars inside a Jupyter notebook in VSCode.
+When I open a data frame from the variable view, it is not formatted correctly.
+It shows like this:
+
+Columns and Rows are swapped and the column names are missing.
+I would've expected a display similar to pandas data frames like so:
+
+How can I make the Polars dataframe display correctly?
+Answer:
+Update (2023-08-23): the latest release of VSCode will call to_pandas automatically and you no longer need the alias.
+
+VSCode will try to display variables with a type name DataFrame in the data viewer. It does not check the fully qualified name and will try to treat a polars.DataFrame the same way as a pandas.DataFrame.
+See: https://github.com/microsoft/vscode-jupyter/blob/main/pythonFiles/vscode_datascience_helpers/getJupyterVariableDataFrameInfo.py
+It will try to call a method named toPandas on a DataFrame if it exists (which it does not in the case of polars).
+Either VSCode gets proper support for polars or polars would have to implement the toPandas method.
+However, since polars already has a method to_pandas you could create an alias for that and it will display as expected.
+import polars as pl
+df = pl.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+df.toPandas = df.to_pandas
+END
+
+
+Question:
+I want to try out polars in Python so what I want to do is concatenate several dataframes that are read from jsons. When I change the index to date and have a look at lala1.head() I see that the column date is gone, so I basically lose the index. Is there a better solution or do I need to sort by date, which basically does the same as setting the index to date?
+import polars as pl
+
+quarterly_balance_df = pl.read_json('../AAPL/single_statements/1985-09-30-quarterly_balance.json')
+
+
+q1 = quarterly_balance_df.lazy().with_column(pl.col("date").str.strptime(pl.Date, "%Y-%m-%d"))
+quarterly_balance_df = q1.collect()
+q2 = quarterly_balance_df.lazy().with_column(pl.col("fillingDate").str.strptime(pl.Date, "%Y-%m-%d"))
+quarterly_balance_df = q2.collect()
+q3 = quarterly_balance_df.lazy().with_column(pl.col("acceptedDate").str.strptime(pl.Date, "%Y-%m-%d"))
+quarterly_balance_df = q3.collect()
+
+quarterly_balance_df2 = pl.read_json('../AAPL/single_statements/1986-09-30-quarterly_balance.json')
+
+q1 = quarterly_balance_df2.lazy().with_column(pl.col("date").str.strptime(pl.Date, "%Y-%m-%d"))
+quarterly_balance_df2 = q1.collect()
+q2 = quarterly_balance_df2.lazy().with_column(pl.col("fillingDate").str.strptime(pl.Date, "%Y-%m-%d"))
+quarterly_balance_df2 = q2.collect()
+q3 = quarterly_balance_df2.lazy().with_column(pl.col("acceptedDate").str.strptime(pl.Date, "%Y-%m-%d"))
+quarterly_balance_df2 = q3.collect()
+
+lala1 = pl.from_pandas(quarterly_balance_df.to_pandas().set_index('date'))
+lala2 = pl.from_pandas(quarterly_balance_df.to_pandas().set_index('date'))
+
+test = pl.concat([lala1,lala2])
+Answer:
+Polars intentionally eliminates the concept of an index.
+From the "Coming from Pandas" section in the User Guide:
+
+Polars aims to have predictable results and readable queries, as such we think an index does not help us reach that objective.
+
+Indeed, the from_pandas method ignores any index.  For example, if we start with this data:
+import polars as pl
+
+df = pl.DataFrame(
+    {
+        "key": [1, 2],
+        "var1": ["a", "b"],
+        "var2": ["r", "s"],
+    }
+)
+print(df)
+
+shape: (2, 3)
+┌─────┬──────┬──────┐
+│ key ┆ var1 ┆ var2 │
+│ --- ┆ ---  ┆ ---  │
+│ i64 ┆ str  ┆ str  │
+╞═════╪══════╪══════╡
+│ 1   ┆ a    ┆ r    │
+│ 2   ┆ b    ┆ s    │
+└─────┴──────┴──────┘
+
+Now, if we export this Polars dataset to Pandas, set key as the index in Pandas, and then re-import to Polars, you'll see the 'key' column disappear.
+pl.from_pandas(df.to_pandas().set_index("key"))
+
+shape: (2, 2)
+┌──────┬──────┐
+│ var1 ┆ var2 │
+│ ---  ┆ ---  │
+│ str  ┆ str  │
+╞══════╪══════╡
+│ a    ┆ r    │
+│ b    ┆ s    │
+└──────┴──────┘
+
+This is why your Date column disappeared.
+In Polars, you can sort, summarize, or join by any set of columns in a DataFrame.  No need to declare an index.
+I recommend looking through the Polars User Guide.  It's a great place to start.  And there's a section for those coming from Pandas.
+END
+
+
+Question:
+So I have a Polars dataframe looking as such
+df = pl.DataFrame(
+    {
+        "ItemId": [15148, 15148, 24957],
+        "SuffixFactor": [19200, 200, 24],
+        "ItemRand": [254, -1, -44],
+        "Stat0": ['+5 Defense', '+$i Might', '+9 Vitality'],
+        "Amount": ['', '7', '']
+    }
+)
+
+I want to replace $i in the column "Stat0" with Amount whenever Stat0 contains i$
+I have tried a couple different things such as:
+df = df.with_column(
+    pl.col('Stat0').str.replace(r'\$i', pl.col('Amount'))
+)
+
+Expected result
+result = pl.DataFrame(
+    {
+        "ItemId": [15148, 15148, 24957],
+        "SuffixFactor": [19200, 200, 24],
+        "ItemRand": [254, -1, -44],
+        "Stat0": ['+5 Defense', '+7 Might', '+9 Vitality'],
+        "Amount": ['', '7', '']
+    }
+)
+
+But this doesn't seem to work.
+I hope someone can help.
+Best regards
+Answer:
+Edit: Polars >= 0.14.4
+As of Polars 0.14.4, the replace and replace_all expressions allow an Expression for the value parameter.  Thus, we can solve this more simply as:
+df.with_column(
+    pl.col('Stat0').str.replace(r'\$i', pl.col('Amount'))
+)
+
+shape: (3, 5)
+┌────────┬──────────────┬──────────┬─────────────┬────────┐
+│ ItemId ┆ SuffixFactor ┆ ItemRand ┆ Stat0       ┆ Amount │
+│ ---    ┆ ---          ┆ ---      ┆ ---         ┆ ---    │
+│ i64    ┆ i64          ┆ i64      ┆ str         ┆ str    │
+╞════════╪══════════════╪══════════╪═════════════╪════════╡
+│ 15148  ┆ 19200        ┆ 254      ┆ +5 Defense  ┆        │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ 15148  ┆ 200          ┆ -1       ┆ +7 Might    ┆ 7      │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ 24957  ┆ 24           ┆ -44      ┆ +9 Vitality ┆        │
+└────────┴──────────────┴──────────┴─────────────┴────────┘
+
+Polars < 0.14.4
+The problem is that the replace method does not take an Expression, only a constant.  Thus, we cannot use a column as replacement values, only a constant.
+We can get around this in two ways.
+Slow: using apply
+This method uses python code to perform the replacement.  Since we are executing python bytecode using apply, it will be slow.  If your DataFrame is small, then this won't be too painfully slow.
+(
+    df
+    .with_column(
+        pl.struct(['Stat0', 'Amount'])
+        .apply(lambda cols: cols['Stat0'].replace('$i', cols['Amount']))
+        .alias('Stat0')
+    )
+)
+
+shape: (3, 5)
+┌────────┬──────────────┬──────────┬─────────────┬────────┐
+│ ItemId ┆ SuffixFactor ┆ ItemRand ┆ Stat0       ┆ Amount │
+│ ---    ┆ ---          ┆ ---      ┆ ---         ┆ ---    │
+│ i64    ┆ i64          ┆ i64      ┆ str         ┆ str    │
+╞════════╪══════════════╪══════════╪═════════════╪════════╡
+│ 15148  ┆ 19200        ┆ 254      ┆ +5 Defense  ┆        │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ 15148  ┆ 200          ┆ -1       ┆ +7 Might    ┆ 7      │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ 24957  ┆ 24           ┆ -44      ┆ +9 Vitality ┆        │
+└────────┴──────────────┴──────────┴─────────────┴────────┘
+
+Fast: using split_exact and when/then/otherwise
+This method uses all Polars Expressions.  As such, it will be much faster, especially for large DataFrames.
+(
+    df
+    .with_column(
+        pl.col('Stat0').str.split_exact('$i', 1)
+    )
+    .unnest('Stat0')
+    .with_column(
+        pl.when(pl.col('field_1').is_null())
+        .then(pl.col('field_0'))
+        .otherwise(pl.concat_str(['field_0', 'Amount', 'field_1']))
+        .alias('Stat0')
+    )
+    .drop(['field_0', 'field_1'])
+)
+
+shape: (3, 5)
+┌────────┬──────────────┬──────────┬────────┬─────────────┐
+│ ItemId ┆ SuffixFactor ┆ ItemRand ┆ Amount ┆ Stat0       │
+│ ---    ┆ ---          ┆ ---      ┆ ---    ┆ ---         │
+│ i64    ┆ i64          ┆ i64      ┆ str    ┆ str         │
+╞════════╪══════════════╪══════════╪════════╪═════════════╡
+│ 15148  ┆ 19200        ┆ 254      ┆        ┆ +5 Defense  │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 15148  ┆ 200          ┆ -1       ┆ 7      ┆ +7 Might    │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 24957  ┆ 24           ┆ -44      ┆        ┆ +9 Vitality │
+└────────┴──────────────┴──────────┴────────┴─────────────┘
+
+How it works: we first split the Stat0 column on $i using split_exact.  This will produce a struct.
+(
+    df
+    .with_column(
+        pl.col('Stat0').str.split_exact('$i', 1)
+    )
+)
+
+shape: (3, 5)
+┌────────┬──────────────┬──────────┬──────────────────────┬────────┐
+│ ItemId ┆ SuffixFactor ┆ ItemRand ┆ Stat0                ┆ Amount │
+│ ---    ┆ ---          ┆ ---      ┆ ---                  ┆ ---    │
+│ i64    ┆ i64          ┆ i64      ┆ struct[2]            ┆ str    │
+╞════════╪══════════════╪══════════╪══════════════════════╪════════╡
+│ 15148  ┆ 19200        ┆ 254      ┆ {"+5 Defense",null}  ┆        │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ 15148  ┆ 200          ┆ -1       ┆ {"+"," Might"}       ┆ 7      │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ 24957  ┆ 24           ┆ -44      ┆ {"+9 Vitality",null} ┆        │
+└────────┴──────────────┴──────────┴──────────────────────┴────────┘
+
+Notice that when Stat0 does not contain $i, the second member of the struct is null.  We'll use this fact to our advantage.
+In the next step, we break the struct into separate columns, using unnest.
+(
+    df
+    .with_column(
+        pl.col('Stat0').str.split_exact('$i', 1)
+    )
+    .unnest('Stat0')
+)
+
+shape: (3, 6)
+┌────────┬──────────────┬──────────┬─────────────┬─────────┬────────┐
+│ ItemId ┆ SuffixFactor ┆ ItemRand ┆ field_0     ┆ field_1 ┆ Amount │
+│ ---    ┆ ---          ┆ ---      ┆ ---         ┆ ---     ┆ ---    │
+│ i64    ┆ i64          ┆ i64      ┆ str         ┆ str     ┆ str    │
+╞════════╪══════════════╪══════════╪═════════════╪═════════╪════════╡
+│ 15148  ┆ 19200        ┆ 254      ┆ +5 Defense  ┆ null    ┆        │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ 15148  ┆ 200          ┆ -1       ┆ +           ┆  Might  ┆ 7      │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ 24957  ┆ 24           ┆ -44      ┆ +9 Vitality ┆ null    ┆        │
+└────────┴──────────────┴──────────┴─────────────┴─────────┴────────┘
+
+This creates two new columns: field_0 and field_1.
+From here, we use when/then/otherwise and concat_str to construct the final result
+Basically:
+
+when $i does not appear in the Stat0 column, then the string is not split, and field_1 is null, so we can use the value in field_0 as is.
+when $i does appear in Stat0, then the string is split into two parts: field_0 and field_1.  We simply concatenate the parts back together, putting Amount in the middle.
+
+(
+    df
+    .with_column(
+        pl.col('Stat0').str.split_exact('$i', 1)
+    )
+    .unnest('Stat0')
+    .with_column(
+        pl.when(pl.col('field_1').is_null())
+        .then(pl.col('field_0'))
+        .otherwise(pl.concat_str(['field_0', 'Amount', 'field_1']))
+        .alias('Stat0')
+    )
+)
+
+shape: (3, 7)
+┌────────┬──────────────┬──────────┬─────────────┬─────────┬────────┬─────────────┐
+│ ItemId ┆ SuffixFactor ┆ ItemRand ┆ field_0     ┆ field_1 ┆ Amount ┆ Stat0       │
+│ ---    ┆ ---          ┆ ---      ┆ ---         ┆ ---     ┆ ---    ┆ ---         │
+│ i64    ┆ i64          ┆ i64      ┆ str         ┆ str     ┆ str    ┆ str         │
+╞════════╪══════════════╪══════════╪═════════════╪═════════╪════════╪═════════════╡
+│ 15148  ┆ 19200        ┆ 254      ┆ +5 Defense  ┆ null    ┆        ┆ +5 Defense  │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 15148  ┆ 200          ┆ -1       ┆ +           ┆  Might  ┆ 7      ┆ +7 Might    │
+├╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 24957  ┆ 24           ┆ -44      ┆ +9 Vitality ┆ null    ┆        ┆ +9 Vitality │
+└────────┴──────────────┴──────────┴─────────────┴─────────┴────────┴─────────────┘
+END
+
+
+Question:
+In PyCharm you have the ability to show a Pandas Dataframe with the SciView tool. Is this also possible with Polars or would I have to spam print statements?
+(I also opened a PyCharm support ticket)
+Answer:
+Polars DataFrames are not yet fully supported in PyCharm.
+https://youtrack.jetbrains.com/issue/DS-2111 (was https://youtrack.jetbrains.com/issue/PY-50861 previously) -- watch this ticket (star/vote/comment) to get notified with any progress.
+END
+
+
+Question:
+I am converting pandas dataframe to polars dataframe but pyarrow throws error.
+My code:
+import polars as pl
+import pandas as pd
+
+if __name__ == "__main__":
+
+    with open(r"test.xlsx", "rb") as f:
+        excelfile = f.read()
+    excelfile = pd.ExcelFile(excelfile)
+    sheetnames = excelfile.sheet_names
+    df = pd.concat(
+        [
+            pd.read_excel(
+            excelfile, sheet_name=x, header=0)
+                    for x in sheetnames
+                    ], axis=0)
+
+    df_pl = pl.from_pandas(df)
+
+Error:
+File "pyarrow\array.pxi", line 312, in pyarrow.lib.array 
+File "pyarrow\array.pxi", line 83, in pyarrow.lib._ndarray_to_array 
+File "pyarrow\error.pxi", line 122, in pyarrow.lib.check_status 
+pyarrow.lib.ArrowTypeError: Expected bytes, got a 'int' object 
+I tried changing pandas dataframe dtype to str and problem is solved, but i don't want to change dtypes. Is it bug in pyarrow or am I missing something?
+Answer:
+Edit: Polars 0.13.42 and later
+Polars now has a read_excel function that will correctly handle this situation.  read_excel is now the preferred way to read Excel files into Polars.
+Note: to use read_excel, you will need to install xlsx2csv (which can be installed with pip).
+Polars: prior to 0.13.42
+I can replicate this result.  It is due to a column in the original Excel file that contains both text and numbers.
+For example, create a new Excel file with one column in which you type both numbers and text, save it, and run your code on that file.  I get the following traceback:
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+  File "/home/xxx/.virtualenvs/StackOverflow3.10/lib/python3.10/site-packages/polars/convert.py", line 299, in from_pandas
+    return DataFrame._from_pandas(df, rechunk=rechunk, nan_to_none=nan_to_none)
+  File "/home/xxx/.virtualenvs/StackOverflow3.10/lib/python3.10/site-packages/polars/internals/frame.py", line 454, in _from_pandas
+    pandas_to_pydf(
+  File "/home/xxx/.virtualenvs/StackOverflow3.10/lib/python3.10/site-packages/polars/internals/construction.py", line 485, in pandas_to_pydf
+    arrow_dict = {
+  File "/home/xxx/.virtualenvs/StackOverflow3.10/lib/python3.10/site-packages/polars/internals/construction.py", line 486, in <dictcomp>
+    str(col): _pandas_series_to_arrow(
+  File "/home/xxx/.virtualenvs/StackOverflow3.10/lib/python3.10/site-packages/polars/internals/construction.py", line 237, in _pandas_series_to_arrow
+    return pa.array(values, pa.large_utf8(), from_pandas=nan_to_none)
+  File "pyarrow/array.pxi", line 312, in pyarrow.lib.array
+  File "pyarrow/array.pxi", line 83, in pyarrow.lib._ndarray_to_array
+  File "pyarrow/error.pxi", line 122, in pyarrow.lib.check_status
+pyarrow.lib.ArrowTypeError: Expected bytes, got a 'int' object
+
+There are several lengthy discussions on this issue, such as these:
+
+to_parquet can't handle mixed type columns #21228
+
+pyarrow.lib.ArrowTypeError: "Expected a string or bytes object, got a 'int' object" #349
+
+
+This particular comment might be relevant, as you are concatenating the results of parsing multiple sheets in an Excel file.  This may lead to conflicting dtypes for a column:
+https://github.com/pandas-dev/pandas/issues/21228#issuecomment-419175116
+How to approach this depends on your data and its use, so I can't recommend a blanket solution (i.e., fixing your source Excel file, or changing the dtype to str).
+END
+
+
