@@ -1,3 +1,8 @@
+"""
+Create embeddings using stackoverflow most popular questions about Polars
+and save them in Pinecone.
+"""
+
 from langchain_community.document_loaders import TextLoader
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -67,8 +72,5 @@ if __name__ == "__main__":
         separators="END\n\n\n", chunk_size=1000, chunk_overlap=200
     )
     docs = text_splitter.split_documents(docs)
-
-    embeddings = OpenAIEmbeddings()
-
-    vectorstore = PineconeVectorStore(index_name=INDEX_NAME, embedding=embeddings)
+    vectorstore = PineconeVectorStore(index_name=INDEX_NAME, embedding=OpenAIEmbeddings())
     vectorstore.add_documents(docs)

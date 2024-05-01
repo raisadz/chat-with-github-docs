@@ -1,3 +1,8 @@
+"""
+Create a RAG using Langchain LCEL that has a memory and streams the response.
+"""
+
+
 import streamlit as st
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import OpenAIEmbeddings
@@ -13,11 +18,14 @@ from langchain_pinecone import PineconeVectorStore
 from langchain_core.output_parsers import StrOutputParser
 from langchain.schema.runnable import RunnableMap
 
+INDEX_NAME = 'polars-docs'
+OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
+
 
 def get_response(user_query):
     embeddings = OpenAIEmbeddings()
     db = PineconeVectorStore(
-        index_name=st.secrets["PINECONE_INDEX_NAME"], embedding=embeddings
+        index_name=INDEX_NAME, embedding=embeddings
     )
     retriever = db.as_retriever(search_kwargs={"k": 50})
 
@@ -25,24 +33,25 @@ def get_response(user_query):
         model="gpt-3.5-turbo",
         temperature=0,
         max_tokens=1000,
-        api_key=st.secrets["OPENAI_API_KEY"],
+        api_key=OPENAI_API_KEY,
     )
     prompt = ChatPromptTemplate.from_messages(
         [
             (
                 "system",
-                "You're a useful AI assistant.\n"
+                "You're a useful AI assistant. "
                 "Respond in short but complete answers unless specifically "
-                "asked by the User to elaborate on something.\n"
-                "Use both Context and History to inform your answers.\n"
-                "We have provided Context and History below. \n"
+                "asked by the User to elaborate on something. "
+                "Use both Context and History to inform your answers. "
+                "We have provided Context and History below. "
                 "---------------------\n"
                 "Context: {context} \n"
                 "---------------------\n"
                 "History: {history} \n"
-                "Give an answer only if you checked that it is correct in Context. \n"
-                "If you can't find an answer in Context, say that you don't know, don't imagine anything. \n"
-                "Given this information, provide an answer to the following \n:"
+                "Give an answer only if you checked that it is correct in Context. "
+                "If you can't find an answer in Context, say that you don't know, "
+                "don't make up and assume anything. "
+                "Given this information, provide an answer to the following: "
                 "---------------------\n"
                 "User question: {input}\n",
             ),
@@ -61,7 +70,7 @@ def get_response(user_query):
                 "context": lambda x: "\n\n -----".join(
                     [
                         doc.page_content
-                        for doc in retriever.get_relevant_documents(x["input"])
+                        for doc in retriever.invoke(x["input"])
                     ]
                 ),
                 "input": lambda x: x["input"],

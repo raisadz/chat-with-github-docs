@@ -1,3 +1,7 @@
+"""
+Create embeddings from the GitHub repos and save them in Pinecone.
+"""
+
 import os
 from langchain_community.document_loaders import TextLoader
 from langchain.text_splitter import (
@@ -49,20 +53,10 @@ def github_embeddings(
                     print(f"failed for {full_file_name}")
                     pass
 
-    TEXT_SPLITTER_CHUNK_PARAMS = {
-        "chunk_size": 1000,
-        "chunk_overlap": 200,
-        "length_function": len,
-    }
-
-    text_splitter = RecursiveCharacterTextSplitter(**TEXT_SPLITTER_CHUNK_PARAMS)
-
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     documents = text_splitter.split_documents(docs)
-
     embeddings = OpenAIEmbeddings()
-
     pc = Pinecone(api_key=pinecone_api_key)
-
     pc_indexes = [x["name"] for x in pc.list_indexes()]
 
     if flag_new:

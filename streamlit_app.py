@@ -1,15 +1,19 @@
+"""
+Create a streamlit app for a conversational bot for Polars documentation.
+"""
+
 import streamlit as st
 from langchain_core.messages import AIMessage, HumanMessage
 
 from retrieval_chain import get_response
 
-st.set_page_config(page_title="Chat with GitHub docs", page_icon="🤖")
-st.title(f"Chat with {st.secrets['DOCS_NAME']} docs")
+st.set_page_config(page_title="Chat with Polars docs", page_icon="🤖")
+st.title(f"Chat with Polars docs")
 
 
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = [
-        AIMessage(content="Hello, I am an AI assistant. How can I help you?"),
+        AIMessage(content="Hello, can I assist you with Polars docs?"),
     ]
 
 for message in st.session_state.chat_history:
