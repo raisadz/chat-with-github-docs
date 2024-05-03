@@ -16,18 +16,10 @@ from langchain_openai.chat_models import ChatOpenAI
 from langchain_pinecone import PineconeVectorStore
 from langchain_core.output_parsers import StrOutputParser
 from langchain.schema.runnable import RunnableMap
-import polars as pl
 
 
 INDEX_NAME = "polars-docs"
 OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
-
-
-def list_polars_funcs():
-    all_funcs = [v for v in pl.DataFrame().__dir__() if not v.startswith("_")]
-    all_funcs.extend([v for v in pl.Series().__dir__() if not v.startswith("_")])
-    all_funcs.extend([v for v in pl.__dir__() if not v.startswith("_")])
-    return sorted(list(set([x for x in all_funcs if x != "groupby"])))
 
 
 def get_response(user_query):
@@ -54,9 +46,6 @@ def get_response(user_query):
                 "Context: {context} \n"
                 "---------------------\n"
                 "History: {history} \n"
-                "If the questions is about Polars check that the functions "
-                f" that you want to provide in the answer are in {list_polars_funcs()}. "
-                "After finding the correct function, find the associated function's examples. "
                 "Give an answer only if you checked that it is correct in Context. "
                 "If you can't find an answer in Context, say that you don't know, "
                 "don't make up and assume anything. "
