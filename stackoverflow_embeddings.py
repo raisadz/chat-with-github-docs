@@ -72,5 +72,7 @@ if __name__ == "__main__":
         separators="END\n\n\n", chunk_size=1000, chunk_overlap=200
     )
     docs = text_splitter.split_documents(docs)
-    vectorstore = PineconeVectorStore(index_name=INDEX_NAME, embedding=OpenAIEmbeddings())
+    vectorstore = PineconeVectorStore(
+        index_name=INDEX_NAME, embedding=OpenAIEmbeddings()
+    )
     vectorstore.add_documents(docs)

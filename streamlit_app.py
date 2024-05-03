@@ -8,7 +8,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from retrieval_chain import get_response
 
 st.set_page_config(page_title="Chat with Polars docs", page_icon="🤖")
-st.title(f"Chat with Polars docs")
+st.title("Chat with Polars docs")
 
 
 if "chat_history" not in st.session_state:

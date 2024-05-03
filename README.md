@@ -8,7 +8,8 @@ Install python 3.11. Clone the repo and inside the folder create a virtual env a
 ```bash
 python3.11 -m venv venv
 source venv/bin/activate
-pip install -r requirements-dev.txt
+pip install -U pip
+pip install uv
 uv pip install -r requirements.txt
 ```
 
